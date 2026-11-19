@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Резюме Владимира Болкунова — C# / .NET / Unity. Интерактивная игра «текстовый раннер» и читаемая страница резюме." />
+  <title>Болкунов Владимир · резюме</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <main id="app">
+
+    <!-- ЭКРАН 1: лэндинг (#/) -->
+    <section id="screen-welcome" class="screen" aria-label="Лэндинг">
+      <div class="welcome-inner">
+        <p class="welcome-kicker">резюме в двух режимах</p>
+        <h1 class="welcome-name">Болкунов&nbsp;Владимир</h1>
+        <p class="welcome-role">C# · .NET · Unity · геймдизайн</p>
+
+        <nav class="welcome-buttons" aria-label="Выбор режима">
+          <a class="btn btn-primary" href="#/game">Играть: пробежать по резюме</a>
+          <a class="btn btn-secondary" href="#/resume">Открыть резюме как страницу</a>
+        </nav>
+
+        <p class="welcome-hint">
+          В игре — один тап (или пробел) = прыжок.<br />
+          Предложения резюме становятся миром, по которому ты бежишь.
+        </p>
+      </div>
+    </section>
+
+    <!-- ЭКРАН 2: игра (#/game) -->
+    <section id="screen-game" class="screen screen-game" aria-label="Игра «Текстовый раннер»">
+      <canvas id="game-canvas" aria-label="Игровое поле: платформы с фразами из резюме"></canvas>
+      <div id="game-hud" aria-live="polite"></div>
+    </section>
+
+    <!-- ЭКРАН 3: резюме (#/resume) -->
+    <section id="screen-resume" class="screen screen-resume" aria-label="Резюме">
+      <article id="resume-root" class="resume"></article>
+    </section>
+
+  </main>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/router.js"></script>
+  <script src="assets/js/welcome.js"></script>
+  <script src="assets/js/resume.js"></script>
+  <script src="assets/js/game/level.js"></script>
+  <script src="assets/js/game/hud.js"></script>
+  <script src="assets/js/game/engine.js"></script>
+</body>
+</html>

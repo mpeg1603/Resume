@@ -1,0 +1,420 @@
+/* =========================================================
+   style.css — тёмная тема, mobile-first.
+   Три экрана: #screen-welcome / #screen-game / #screen-resume
+   ========================================================= */
+
+:root {
+  --bg: #0e1014;
+  --panel: #151a21;
+  --panel-2: #1b212a;
+  --line: #262d38;
+  --text: #e9edf3;
+  --muted: #9aa4b0;
+  --accent: #5aa7ff;
+  --danger: #ff6b6b;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.55;
+}
+
+body {
+  overflow-x: hidden;
+  touch-action: manipulation; /* убирает double-tap zoom на мобильных */
+  -webkit-text-size-adjust: 100%;
+}
+
+a { color: var(--accent); }
+
+/* ---------- экраны (SPA) ---------- */
+
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ---------- ЛЭНДИНГ ---------- */
+
+#screen-welcome {
+  min-height: 100dvh;
+  display: none;
+}
+#screen-welcome.active { display: flex; }
+
+.welcome-inner {
+  margin: auto;
+  padding: 48px 20px calc(48px + env(safe-area-inset-bottom));
+  text-align: center;
+  max-width: 640px;
+  width: 100%;
+}
+
+.welcome-kicker {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.welcome-name {
+  margin: 0;
+  font-size: clamp(34px, 8vw, 56px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  animation: rise 0.7s ease both;
+}
+
+.welcome-role {
+  margin: 12px 0 40px;
+  font-size: clamp(15px, 3.6vw, 19px);
+  color: var(--muted);
+  animation: rise 0.7s ease 0.08s both;
+}
+
+.welcome-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 34px;
+  animation: rise 0.7s ease 0.16s both;
+}
+
+.btn {
+  display: block;
+  width: min(100%, 420px);
+  border-radius: var(--radius);
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(0) scale(0.98); }
+
+/* верхняя (крупная) кнопка — игра */
+.btn-primary {
+  padding: 20px 26px;
+  font-size: clamp(17px, 4.4vw, 21px);
+  font-weight: 700;
+  color: #0b1320;
+  background: linear-gradient(180deg, #7cbcff, var(--accent));
+  border: none;
+  box-shadow: 0 10px 30px rgba(90, 167, 255, 0.25);
+}
+
+/* нижняя (меньшая) кнопка — страница резюме */
+.btn-secondary {
+  padding: 14px 24px;
+  font-size: clamp(14px, 3.8vw, 17px);
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--line);
+}
+.btn-secondary:hover { border-color: var(--muted); }
+
+.welcome-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+  animation: rise 0.7s ease 0.24s both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------- ИГРА ---------- */
+
+#screen-game.active {
+  position: fixed;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+#game-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none; /* сам canvas не скроллит и не зумит */
+}
+
+#game-hud { position: absolute; inset: 0; pointer-events: none; }
+#game-hud > * { pointer-events: auto; }
+
+.hud-topbar {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud-section {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+.hud-count {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-progress {
+  flex: 1;
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.hud-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  transition: width 0.25s ease;
+}
+
+.hud-pause-btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(21, 26, 33, 0.85);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hud-toast {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  padding: 10px 18px;
+  border-radius: 99px;
+  background: rgba(21, 26, 33, 0.92);
+  border: 1px solid var(--line);
+  font-size: 15px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none !important;
+}
+.hud-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* финальный экран и пауза — панели поверх канваса */
+.hud-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 16, 0.78);
+  backdrop-filter: blur(6px);
+  padding: 24px;
+}
+
+.hud-panel-card {
+  width: min(100%, 520px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 30px 26px calc(26px + env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+.hud-panel-title {
+  margin: 0 0 6px;
+  font-size: clamp(24px, 6vw, 32px);
+}
+.hud-panel-sub {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.hud-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 26px;
+}
+.hud-stat {
+  background: var(--panel-2);
+  border-radius: 12px;
+  padding: 12px 8px;
+}
+.hud-stat b {
+  display: block;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.hud-stat span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.hud-panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---------- РЕЗЮМЕ (страница) ---------- */
+
+#screen-resume.active {
+  min-height: 100dvh;
+}
+
+.resume {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: calc(28px + env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom));
+}
+
+.resume-header h1 {
+  margin: 0;
+  font-size: clamp(30px, 7vw, 44px);
+  letter-spacing: -0.02em;
+}
+.resume-role {
+  margin: 6px 0 18px;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 34px;
+  padding: 0;
+  list-style: none;
+}
+.skill-chips li {
+  padding: 6px 12px;
+  border-radius: 99px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: 13.5px;
+  color: var(--text);
+}
+
+.resume h2 {
+  margin: 40px 0 14px;
+  font-size: clamp(20px, 5vw, 26px);
+  letter-spacing: -0.01em;
+}
+
+.resume-about ul {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+.resume-about li { color: var(--text); }
+
+.exp-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px 20px 16px;
+  margin-bottom: 18px;
+}
+.exp-card h3 {
+  margin: 0;
+  font-size: 19px;
+}
+.exp-period {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.exp-intro {
+  margin: 12px 0 0;
+  color: var(--text);
+}
+
+.exp-highlight {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: var(--panel-2);
+  border-radius: 12px;
+}
+.exp-highlight h4 {
+  margin: 0 0 10px;
+  font-size: 15.5px;
+}
+
+.resume ul.bullets {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+.resume ul.bullets li b { color: var(--text); }
+.resume ul.bullets li span { color: var(--muted); }
+
+.video-card {
+  margin-top: 14px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+}
+.video-card iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+}
+.video-title {
+  margin: 12px 2px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.resume-footer {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* ---------- мелочи ---------- */
+
+::selection { background: rgba(90, 167, 255, 0.35); }
+
+@media (min-width: 700px) {
+  .resume { padding-top: 56px; }
+}
