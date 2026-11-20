@@ -20,6 +20,9 @@
   var pendingJump = false, jumpRequestAt = 0;
   var boundInput = false, boundResize = false, lastSectionForHud = -1;
 
+  // Kenney Pixel Platformer (CC0), row 1 character sheet — flash-free set
+  var playerImgs = null; // {runA, runB, jump}: frames available after loading
+
   /* ---------- геометрия ---------- */
 
   function resize() {
@@ -39,6 +42,32 @@
   /** верхняя грань конкретной платформы (базовая линия минус её подъём) */
   function platTop(q) {
     return groundTop() - q.lift;
+  }
+
+  /* ---------- спрайты игрока (Kenney Pixel Platformer, CC0) ----------
+     Row 1 of the sheet: run-цикл c0/c1 + jump-tuck c4 — все кадры на одной палитре,
+     поэтому нет цветового «мигания» при смене кадров. Fallback — капсула. */
+
+  function loadPlayerSprites() {
+    if (playerImgs || typeof Image === 'undefined') return; // smoke/node — нет DOM
+    var srcs = [
+      ['runA', 'assets/img/player/run_a.png'],
+      ['runB', 'assets/img/player/run_b.png'],
+      ['jump', 'assets/img/player/jump.png']
+    ];
+    playerImgs = {};
+    for (var i = 0; i < srcs.length; i++) {
+      var img = new Image();
+      img.src = srcs[i][1];
+      playerImgs[srcs[i][0]] = img;
+    }
+  }
+
+  function spritesReady() {
+    return !!playerImgs &&
+      playerImgs.runA.complete && playerImgs.runA.naturalWidth > 0 &&
+      playerImgs.runB.complete && playerImgs.runB.naturalWidth > 0 &&
+      playerImgs.jump.complete && playerImgs.jump.naturalWidth > 0;
   }
 
   /* ---------- состояние забега ---------- */
@@ -402,23 +431,32 @@
     // крупное название секции над intro-платформой (влетает справа → улетает влево)
     drawSectionTitle();
 
-    // игрок: капсула со «взглядом вперёд», лёгкий squash & stretch
+    // игрок: спрайт Kenney Pixel Platformer (row 1), капсула — fallback
     var p = state.player;
     var px = p.x - camX;
-    var w = 30, h = 42;
-    var squash = Math.min(1.2, Math.max(0.82, 1 - p.vy / 3500));
-    var sh = h * squash;
-    ctx.fillStyle = '#ffcf5c';
-    rr(ctx, px - w / 2, p.feetY - sh, w, sh, 9);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    if (spritesReady()) {
+      // jump-кадр в воздухе или при подъёме, run-цикл на земле (~7 fps)
+      var jumping = !p.grounded || p.vy < 0;
+      var img = jumping ? playerImgs.jump
+        : (Math.floor(state.elapsed / 0.14) % 2 === 0 ? playerImgs.runA : playerImgs.runB);
+      ctx.imageSmoothingEnabled = false; // чёткие пиксели при масштабе 42/24
+      ctx.drawImage(img, px - 21, p.feetY - 42, 42, 42); // бокс 42×42: низ на feetY, центр по player.x
+    } else {
+      var w = 30, h = 42;
+      var squash = Math.min(1.2, Math.max(0.82, 1 - p.vy / 3500));
+      var sh = h * squash;
+      ctx.fillStyle = '#ffcf5c';
+      rr(ctx, px - w / 2, p.feetY - sh, w, sh, 9);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
 
-    ctx.fillStyle = '#2a2418'; // «глаза» смотрят вправо — куда бежим
-    ctx.beginPath();
-    ctx.arc(px + w * 0.16, p.feetY - sh + 11, 2.6, 0, Math.PI * 2);
-    ctx.fill();
+      ctx.fillStyle = '#2a2418'; // «глаза» смотрят вправо — куда бежим
+      ctx.beginPath();
+      ctx.arc(px + w * 0.16, p.feetY - sh + 11, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // HUD
     var sec = D.sections[state.sectionIndex];
@@ -522,6 +560,7 @@
       resize();
       bindResize();
       bindInput();
+      loadPlayerSprites();
 
       buildState();
       window.Hud.init(hudRoot);
