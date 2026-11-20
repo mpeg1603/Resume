@@ -472,47 +472,74 @@
     return c;
   }
 
-  /** объекты параллакса за платформами: два слоя (дальний мельче и тусклее),
-      прибиты к «линии горизонта» — верхней грани типовых платформ. Видны в
-      просветах между платформами и над низкими; оттенок следует текущей секции. */
+  /** один холм — верхний полукруг с плоским основанием (arc/closePath/fill).
+      Основание уходит ниже платформ: в просветах между ними видно тело холма,
+      а над нижними платформами и за высокими — гребень. */
+  function hillDome(cx, yBase, r) {
+    ctx.beginPath();
+    ctx.arc(cx, yBase, r, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  /** дальний план: большие травяные холмы на весь задник, два параллакс-слоя.
+      Холм — союз кругов (arc/fill/stroke — всё есть в smoke-стабе): земляной
+      купол → трава тем же куполом, смещённым вверх («сечение»: зелень сверху,
+      земляная полоса снизу) → светлая кромка по верху. Оттенок травы следует
+      текущей секции; на гребнях стоят декоративные спрайты (Kenney, CC0) —
+      только когда картинки загружены (browser-only path). */
   function drawParallax(camX, sky, hue) {
-    if (!parallaxReady()) return; // нет DOM / спрайты не загружены — остаёмся на процедурном небе
-    var anchorY = groundTop() - D.platformRaise;
+    var night = sky.stars; // 0..1 — тёмнее к ночи
+    // зелёная база с лёгким дрейфом к оттенку секции (не «чистый» зелёный всегда)
+    var dhue = ((hue - 118 + 540) % 360) - 180;
+    var grassHue = Math.round(118 + dhue * 0.35);
     var layers = [
-      { f: 0.34, band: 250, scale: 1.6, alpha: 0.8, yOff: 30, yJit: 50, set: ['rockA', 'bushA', 'rockB'] },        // дальний
-      { f: 0.62, band: 330, scale: 2.4, alpha: 1.0, yOff: 10, yJit: 36, set: ['bushC', 'bushD', 'rockC', 'accent'] } // ближний
+      { f: 0.30, band: Math.max(200, W * 0.17), rFrac: 0.155, jit: 0.45, topFrac: 0.34, spread: 0.14,
+        dirtL: 20, grassL: 31, sat: 40, sprFrac: 0.22, set: ['rockA', 'bushA', 'rockB'] },     // дальний
+      { f: 0.55, band: Math.max(280, W * 0.26), rFrac: 0.235, jit: 0.50, topFrac: 0.47, spread: 0.16,
+        dirtL: 27, grassL: 38, sat: 46, sprFrac: 0.30, set: ['bushC', 'bushD', 'rockC', 'accent'] } // ближний
     ];
+    var haveImgs = parallaxReady();
     ctx.imageSmoothingEnabled = false;
     for (var li = 0; li < layers.length; li++) {
       var l = layers[li];
-      var off = camX * l.f;
+      var off = camX * l.f; // параллакс: слой скользит медленнее камеры
       var i0 = Math.floor(off / l.band);
-      ctx.globalAlpha = l.alpha;
-      for (var i = i0 - 1; i <= i0 + W / l.band + 2; i++) {
+      for (var i = i0 - 2; i <= i0 + W / l.band + 3; i++) {
         var x = i * l.band + hash(i * 7.3 + li * 131.7) * l.band - off;
-        var name = l.set[Math.floor(hash(i * 3.1 + li * 57.3) * l.set.length)];
-        var jit = 0.85 + 0.3 * hash(i * 9.7 + li * 43.1);
-        var w = parallaxImgs[name].naturalWidth * l.scale * jit;
-        var h = parallaxImgs[name].naturalHeight * l.scale * jit;
-        var yBottom = anchorY + l.yOff - hash(i * 5.3 + li * 11.9) * l.yJit;
-        // «островок» под объектом: купол плоского камня, уходит ниже линии горизонта —
-        // в просветах читается как опора, а на платформах его закрывают тайлы.
-        // Сланец (hue 230) специально отличается от травы/земли платформ,
-        // чтобы параллакс не сливался с игровым рельефом
-        var rw = Math.max(14, w * 0.62);
-        var yMoundTop = yBottom - rw * 0.4;
-        ctx.fillStyle = 'hsl(230, 16%, ' + ((li === 0 ? 24 : 40) - sky.stars * (li === 0 ? 16 : 20)) + '%)';
+        // радиус и верх холма детерминированы индексом — стабильны при панорамировании
+        var r = H * l.rFrac * (1 + (hash(i * 11.9 + li * 37.7) - 0.5) * 2 * l.jit);
+        var topY = H * l.topFrac + (hash(i * 4.7 + li * 89.3) - 0.5) * 2 * H * l.spread;
+        var yB = topY + r; // основание купола — уходит ниже платформ и за нижний край
+        var d = r * 0.14;  // на сколько трава смещена вверх от земли
+
+        // земляная база
+        ctx.fillStyle = 'hsl(25,34%,' + Math.round(l.dirtL - night * 14) + '%)';
+        hillDome(x, yB, r);
+        // трава: тот же купол чуть выше и уже — «зелень сверху, земляная полоса снизу»
+        var gl = l.grassL - night * 16 + (hash(i * 23.3 + li * 17.9) - 0.5) * 8;
+        ctx.fillStyle = 'hsl(' + grassHue + ',' + l.sat + '%,' + Math.round(gl) + '%)';
+        hillDome(x, yB - d, r * 0.985);
+        // светлая кромка по верху купола (stroke — есть в стабе)
+        ctx.strokeStyle = 'hsl(' + grassHue + ',' + l.sat + '%,' + Math.round(gl + 16) + '%)';
+        ctx.lineWidth = li === 0 ? 4 : 6;
         ctx.beginPath();
-        ctx.moveTo(x - rw, yMoundTop);
-        ctx.arc(x, yMoundTop, rw, Math.PI, 0); // верхний купол (arc — есть в smoke-стабе)
-        ctx.lineTo(x + rw, yBottom + rw * 0.9);
-        ctx.lineTo(x - rw, yBottom + rw * 0.9);
-        ctx.closePath();
-        ctx.fill();
-        ctx.drawImage(tintedSprite(name, hue, sky.stars), x - w / 2, yBottom - h, w, h);
+        ctx.arc(x, yB - d, r * 0.985, Math.PI, 0);
+        ctx.stroke();
+
+        // декоративный спрайт на гребне: ноги — на верхней дуге травяного купола
+        if (haveImgs && hash(i * 17.3 + li * 29.3) < 0.68) {
+          var name = l.set[Math.floor(hash(i * 3.1 + li * 57.3) * l.set.length)];
+          var im = parallaxImgs[name];
+          var sh = r * l.sprFrac; // высота спрайта от радиуса холма — «стоит на холме»
+          var sw = sh * (im.naturalWidth / im.naturalHeight);
+          var dx = (hash(i * 19.1 + li * 13.7) - 0.5) * r * 1.1;
+          var rg = r * 0.985;
+          var fy = yB - d - Math.sqrt(Math.max(0, rg * rg - dx * dx)); // верхняя дуга купола
+          ctx.drawImage(tintedSprite(name, hue, night), x + dx - sw / 2, fy - sh, sw, sh);
+        }
       }
     }
-    ctx.globalAlpha = 1;
   }
 
   /** палитра неба по времени суток (локальный час) */
