@@ -67,7 +67,7 @@
         intro: '',
         items: [
           { label: 'Агенты', text: 'Claude Code, OpenCode' },
-          { label: 'Модели', text: 'Opus 5, Opus 5.5, Qwen3.5 (локально), Qwen3.8 (локально — помогал писать это резюме)' }
+          { label: 'Модели', text: 'Opus 5, Opus 5.5, Gemma 3 (локально), Gemma 4 (локально), Qwen3.5 (локально), Qwen3.8 (локально — помогал писать это резюме)' }
         ]
       }
     ],
@@ -176,7 +176,7 @@
         hue: 340,
         phrases: [
           'Claude Code, OpenCode',
-          'Opus 5, Opus 5.5, Qwen3.5 (локально), Qwen3.8 (локально — помогал писать это резюме)'
+          'Opus 5, Opus 5.5, Gemma 3 (локально), Gemma 4 (локально), Qwen3.5 (локально), Qwen3.8 (локально — помогал писать это резюме)'
         ]
       }
     ]
