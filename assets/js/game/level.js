@@ -46,17 +46,55 @@
       var lift = 0;     // подъём предыдущей платформы (ограничивает step-up)
       var curSection = 0;
 
-      /** подъём: с вероятностью floatChance — «летающая» (выше среднего) */
-      function pickLift() {
-        if (platforms.length === 0) return 0;
+      /** скорость бега текущей секции */
+      function secSpeed() {
+        return D.speedBase + curSection * D.speedPerSection;
+      }
+
+      /**
+       * допустимый интервал зазора для перехода с prevLift на L при ширине w.
+       * Игрок ВСЕГДА прыгает (и бот тоже): dh = L − lift (> 0 — цель выше),
+       * dLand = v·(v0+√(v0²−2g·dh))/g — дальность до приземления на высоте цели.
+       * Движок интегрирует полуявным Эйлером (vy += g·dt; y += vy·dt) — реальный
+       * полёт короче идеального на ~4-6px, поэтому верхняя граница зазора
+       * dLand − JUMP_MARGIN: отрыв от края, приземление на несколько px ВНУТРИ
+       * платформы (гарантия попадания даже с учётом погрешности интеграции).
+       * Возвращает [gapLo, gapHi] или null, если переход при этом L неисполним.
+       */
+      var JUMP_MARGIN = 8;
+      function gapRange(L, w, gMin, gMax) {
+        var v = secSpeed();
+        var dh = L - lift; // > 0 — цель выше
+        var disc = D.jumpVelocity * D.jumpVelocity - 2 * D.gravity * dh;
+        if (disc < 0) return null; // выше максимального прыжка — недосягаемо в принципе
+        var dLand = v * ((D.jumpVelocity + Math.sqrt(disc)) / D.gravity);
+        var hi = Math.min(gMax, dLand - JUMP_MARGIN);
+        if (hi < gMin) return null;
+        return [Math.max(gMin, dLand - w), hi];
+      }
+
+      /**
+       * выбор lift: только исполнимые варианты (см. gapRange), с вероятностью
+       * floatChance — «летающая» (верхняя половина диапазона).
+       * Возвращает [lift, gapLo, gapHi]; плоский ход всегда исполним (фолбэк).
+       */
+      function pickLift(w, gMin, gMax) {
         var lo = -D.maxDrop;
         var hi = Math.min(D.maxLift, lift + D.maxStepUp); // не выше предыдущей на maxStepUp
-        var span = hi - lo;
-        if (Math.random() < D.floatChance) {
-          var flyLo = lo + span * 0.5; // верхняя половина диапазона
-          return Math.round(flyLo + Math.random() * (hi - flyLo));
+        var feasible = [];
+        for (var L = hi; L >= lo; L -= 5) {
+          var r = gapRange(L, w, gMin, gMax);
+          if (r) feasible.push([L, r[0], r[1]]);
         }
-        return Math.round(lo + Math.random() * span);
+        if (feasible.length === 0) return [lift].concat(gapRange(lift, w, gMin, gMax)); // плоский
+        if (Math.random() < D.floatChance) {
+          var fly = [];
+          for (var i = 0; i < feasible.length; i++) {
+            if (feasible[i][0] >= lo + (hi - lo) * 0.5) fly.push(feasible[i]);
+          }
+          if (fly.length > 0) return fly[Math.floor(Math.random() * fly.length)];
+        }
+        return feasible[Math.floor(Math.random() * feasible.length)];
       }
 
       /** обычная платформа с фразой: укладываем в ≤ maxLinesPerPlatform строк */
@@ -78,12 +116,13 @@
         w = Math.max(D.minPlatformWidth, Math.ceil(maxLineW) + 2 * D.textPadX);
 
         var h = Math.max(56, 16 + lines.length * 24); // глубина «плиты» — визуальная
-        lift = pickLift();
+        var pick = pickLift(w, D.gapMin + curSection * 3, D.gapMax + curSection * 3);
+        lift = pick[0];
         platforms.push({
           x: x, w: w, end: x + w, h: h, lift: lift,
           section: curSection, text: text, lines: lines, read: false
         });
-        var gap = D.gapMin + Math.random() * (D.gapMax - D.gapMin) + curSection * 3;
+        var gap = Math.round(pick[1] + Math.random() * (pick[2] - pick[1]));
         x += w + gap;
       }
 
@@ -96,12 +135,13 @@
             D.wordSplitMinW,
             Math.ceil(measureCtx.measureText(chunk).width) + 2 * D.textPadX
           );
-          lift = pickLift();
+          var pick = pickLift(cw, D.splitGapMin, D.splitGapMax);
+          lift = pick[0];
           platforms.push({
             x: x, w: cw, end: x + cw, h: 56, lift: lift,
             section: curSection, text: chunk, lines: [chunk], read: false
           });
-          var sgap = D.splitGapMin + Math.random() * (D.splitGapMax - D.splitGapMin);
+          var sgap = Math.round(pick[1] + Math.random() * (pick[2] - pick[1]));
           x += cw + sgap; // узкие просветы — быстрые перепрыгивания
         }
       }
@@ -115,7 +155,10 @@
           x: x, w: D.introPlatformW, end: x + D.introPlatformW, h: 60, lift: 0,
           section: si, text: null, lines: [], read: true, intro: true
         });
-        var gap = D.gapMin + Math.random() * (D.gapMax - D.gapMin) + si * 3;
+        // зазор до intro: сход с предыдущей платформы должен быть исполнимым
+        var r = gapRange(0, D.introPlatformW, D.gapMin + si * 3, D.gapMax + si * 3);
+        var gap = r ? Math.round(r[0] + Math.random() * (r[1] - r[0]))
+                    : D.gapMin + Math.random() * (D.gapMax - D.gapMin) + si * 3;
         x += D.introPlatformW + gap;
 
         sec.phrases.forEach(function (phrase) {

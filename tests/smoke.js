@@ -135,9 +135,26 @@ function jumpDistance(v, deltaUp) {
   return v * ((v0 + Math.sqrt(disc)) / g);
 }
 
+// запас прицеливания внутрь платформы: компенсирует погрешность полуявного
+// Эйлера в движке (~1 кадр полёта ≈ v·dt) и даёт боту «человеческий» отрыв
+var JUMP_LAG_MARG = 10;
+
+var __lastMiss = 0;
 function botStep() {
   var dbg = window.TextRunner.debug();
   if (!dbg || dbg.ended || dbg.paused) return;
+  if (process.env.SMOKE_DBG && dbg.misses > __lastMiss) {
+    __lastMiss = dbg.misses;
+    var p0 = dbg.player, pl2 = dbg.platforms, i2 = -1;
+    for (var k2 = 0; k2 < pl2.length; k2++) {
+      if (p0.x >= pl2[k2].x && p0.x <= pl2[k2].end) { i2 = k2; break; }
+    }
+    console.log('MISS misses=' + dbg.misses, 'sec=' + dbg.sectionIndex,
+      'x=' + Math.round(p0.x), 'feetY=' + Math.round(p0.feetY), 'vy=' + Math.round(p0.vy),
+      'plats=', JSON.stringify(pl2.slice(Math.max(0, i2 - 1), i2 + 3).map(function (q) {
+        return { x: Math.round(q.x), w: Math.round(q.w), lift: q.lift };
+      })));
+  }
   if (forceFirstMiss && dbg.misses === 0) return; // нарочное падение на первом просвете
 
   var p = dbg.player, plats = dbg.platforms;
@@ -149,16 +166,24 @@ function botStep() {
   }
   if (under == null || next == null) return;
 
-  var speed = D.speedBase + dbg.sectionIndex * D.speedPerSection;
-  // «на земле» или в койот-зоне относительно верхней грани СВОЕЙ платформы
+  // «на земле» относительно верхней грани СВОЕЙ платформы (только для
+  // расчёта точки отрыва)
   var topA = TOP - under.lift;
-  var groundish = p.grounded || p.feetY <= topA + 14;
-  if (!groundish) return;
 
-  // точка отрыва: достаточно рано, чтобы долететь до верха следующей платформы,
-  // но не позже края своей (койот-зона короткая — прыгаем ещё «на земле»)
+  var speed = D.speedBase + dbg.sectionIndex * D.speedPerSection;
+  // прыгаем только когда гарантированно на земле. В полёте (даже при подъёме
+  // над своей платформой) тапы Space буферизуются движком (pendingJump) и
+  // срабатывают сразу после приземления — «двойной» прыжок из середины
+  // платформы в просвет. Койот-зона боту не нужна: отрыв всегда за
+  // under.end − 4, т.е. ещё на земле.
+  if (!p.grounded) return;
+
+  // точка отрыва: приземляемся ВНУТРИ следующей платформы с запасом.
+  // Движок интегрирует полуявным Эйлером — реальный полёт короче идеального
+  // на ~1 кадр (v·dt ≈ 4–6 px), поэтому прицеливаемся не в левый край,
+  // а на JUMP_LAG_MARG px глубже внутрь; отрыв не позже края своей платформы.
   var dLand = jumpDistance(speed, topA - (TOP - next.lift));
-  var at = Math.min(next.x - dLand, under.end - 4);
+  var at = Math.min(next.x - dLand + JUMP_LAG_MARG, under.end - 4);
 
   if (p.x >= at) {
     window.__h['keydown']({ code: 'Space', preventDefault: function () {} });
