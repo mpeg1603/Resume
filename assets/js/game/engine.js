@@ -477,6 +477,20 @@
         var w = parallaxImgs[name].naturalWidth * l.scale * jit;
         var h = parallaxImgs[name].naturalHeight * l.scale * jit;
         var yBottom = anchorY + l.yOff - hash(i * 5.3 + li * 11.9) * l.yJit;
+        // «островок» под объектом: купол плоского камня, уходит ниже линии горизонта —
+        // в просветах читается как опора, а на платформах его закрывают тайлы.
+        // Сланец (hue 230) специально отличается от травы/земли платформ,
+        // чтобы параллакс не сливался с игровым рельефом
+        var rw = Math.max(14, w * 0.62);
+        var yMoundTop = yBottom - rw * 0.4;
+        ctx.fillStyle = 'hsl(230, 16%, ' + ((li === 0 ? 24 : 40) - sky.stars * (li === 0 ? 16 : 20)) + '%)';
+        ctx.beginPath();
+        ctx.moveTo(x - rw, yMoundTop);
+        ctx.arc(x, yMoundTop, rw, Math.PI, 0); // верхний купол (arc — есть в smoke-стабе)
+        ctx.lineTo(x + rw, yBottom + rw * 0.9);
+        ctx.lineTo(x - rw, yBottom + rw * 0.9);
+        ctx.closePath();
+        ctx.fill();
         ctx.drawImage(tintedSprite(name, hue, sky.stars), x - w / 2, yBottom - h, w, h);
       }
     }
