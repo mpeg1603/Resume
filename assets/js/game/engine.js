@@ -42,6 +42,38 @@
       tileImgs.dirt.complete && tileImgs.dirt.naturalWidth > 0;
   }
 
+  // Kenney Pixel Platformer (CC0), Tiles — объекты дальнего плана: кусты, камни, акценты
+  var parallaxImgs = null; // {bushA..D, rockA..C, accent}: кадры доступны после загрузки
+  var tintCache = {};      // ключ "name_hue_night" -> offscreen-канвас с наложенным тинтом
+
+  function loadParallax() {
+    if (parallaxImgs || typeof Image === 'undefined') return; // smoke/node — нет DOM
+    parallaxImgs = {};
+    var srcs = [
+      ['bushA', 'assets/img/parallax/bush_a.png'],
+      ['bushB', 'assets/img/parallax/bush_b.png'],
+      ['bushC', 'assets/img/parallax/bush_c.png'],
+      ['bushD', 'assets/img/parallax/bush_d.png'],
+      ['rockA', 'assets/img/parallax/rock_a.png'],
+      ['rockB', 'assets/img/parallax/rock_b.png'],
+      ['rockC', 'assets/img/parallax/rock_c.png'],
+      ['accent', 'assets/img/parallax/accent.png']
+    ];
+    for (var i = 0; i < srcs.length; i++) {
+      var img = new Image();
+      img.src = srcs[i][1];
+      parallaxImgs[srcs[i][0]] = img;
+    }
+  }
+
+  function parallaxReady() {
+    if (!parallaxImgs) return false;
+    for (var k in parallaxImgs) {
+      if (!parallaxImgs[k].complete || parallaxImgs[k].naturalWidth <= 0) return false;
+    }
+    return true;
+  }
+
   /* ---------- геометрия ---------- */
 
   var lastDpr = 0; // dpr, использованный при последнем resize — ловим смену zoom/монитора
@@ -386,6 +418,70 @@
     }
   }
 
+  /** текущий оттенок фона: плавный переход от оттенка прошлой секции к текущей
+      (по кратчайшему пути по цветовому кругу) */
+  function sectionHue() {
+    var cur = D.sections[state.sectionIndex].hue;
+    if (state.sectionIndex === 0) return cur;
+    var prev = D.sections[state.sectionIndex - 1].hue;
+    var t = Math.min(1, (state.elapsed - state.sectionEnterAt) / 1.2);
+    t = t * t * (3 - 2 * t); // smoothstep
+    var d = ((cur - prev + 540) % 360) - 180;
+    return (prev + d * t + 360) % 360;
+  }
+
+  /** спрайт с лёгким тинтом: перерисовывается на offscreen-канвасе только при
+      смене квантованного оттенка/уровня ночи. source-atop — тон ложится лишь по
+      непрозрачным пикселям спрайта (без «ореола» на прозрачном фоне). */
+  function tintedSprite(name, hue, night) {
+    var hb = Math.round(hue / 12) * 12 % 360; // квантуем оттенок — не перерисовываем каждый кадр
+    var nb = Math.round(night * 4);           // 5 уровней ночности
+    var key = name + '_' + hb + '_' + nb;
+    var c = tintCache[key];
+    if (!c) {
+      var im = parallaxImgs[name];
+      c = document.createElement('canvas');
+      c.width = im.naturalWidth;
+      c.height = im.naturalHeight;
+      var cc = c.getContext('2d');
+      cc.drawImage(im, 0, 0);
+      cc.globalCompositeOperation = 'source-atop';
+      cc.fillStyle = 'hsla(' + hb + ',45%,' + (42 - nb * 8) + '%,' + (0.13 + night * 0.3).toFixed(2) + ')';
+      cc.fillRect(0, 0, c.width, c.height);
+      tintCache[key] = c;
+    }
+    return c;
+  }
+
+  /** объекты параллакса за платформами: два слоя (дальний мельче и тусклее),
+      прибиты к «линии горизонта» — верхней грани типовых платформ. Видны в
+      просветах между платформами и над низкими; оттенок следует текущей секции. */
+  function drawParallax(camX, sky, hue) {
+    if (!parallaxReady()) return; // нет DOM / спрайты не загружены — остаёмся на процедурном небе
+    var anchorY = groundTop() - D.platformRaise;
+    var layers = [
+      { f: 0.34, band: 250, scale: 1.6, alpha: 0.8, yOff: 30, yJit: 50, set: ['rockA', 'bushA', 'rockB'] },        // дальний
+      { f: 0.62, band: 330, scale: 2.4, alpha: 1.0, yOff: 10, yJit: 36, set: ['bushC', 'bushD', 'rockC', 'accent'] } // ближний
+    ];
+    ctx.imageSmoothingEnabled = false;
+    for (var li = 0; li < layers.length; li++) {
+      var l = layers[li];
+      var off = camX * l.f;
+      var i0 = Math.floor(off / l.band);
+      ctx.globalAlpha = l.alpha;
+      for (var i = i0 - 1; i <= i0 + W / l.band + 2; i++) {
+        var x = i * l.band + hash(i * 7.3 + li * 131.7) * l.band - off;
+        var name = l.set[Math.floor(hash(i * 3.1 + li * 57.3) * l.set.length)];
+        var jit = 0.85 + 0.3 * hash(i * 9.7 + li * 43.1);
+        var w = parallaxImgs[name].naturalWidth * l.scale * jit;
+        var h = parallaxImgs[name].naturalHeight * l.scale * jit;
+        var yBottom = anchorY + l.yOff - hash(i * 5.3 + li * 11.9) * l.yJit;
+        ctx.drawImage(tintedSprite(name, hue, sky.stars), x - w / 2, yBottom - h, w, h);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
   /** палитра неба по времени суток (локальный час) */
   function skyPalette() {
     var h = new Date().getHours();
@@ -474,6 +570,9 @@
     drawClouds(camX, sky.cl); // облака: параллакс медленнее звёзд и платформ
     drawShooting(now, sky.stars);
     drawBody(sky.body, sky.stars);
+
+    // дальний план: кусты/камни Kenney (CC0) за платформами, оттенок следует секции
+    drawParallax(camX, sky, sectionHue());
 
     var bottom = H; // платформа доходит до нижнего края экрана — под ней не видно фон
 
@@ -691,6 +790,7 @@
       bindInput();
       loadPlayerSprites();
       loadTiles();
+      loadParallax();
 
       buildState();
       window.Hud.init(hudRoot);
