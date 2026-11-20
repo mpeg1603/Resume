@@ -31,9 +31,14 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  /** верхняя грань всех платформ (мир плоский: фразы «лежат» на одной высоте) */
+  /** базовая линия мира — верхняя грань платформы с lift = 0 (первой) */
   function groundTop() {
     return H - D.groundFromBottom;
+  }
+
+  /** верхняя грань конкретной платформы (базовая линия минус её подъём) */
+  function platTop(q) {
+    return groundTop() - q.lift;
   }
 
   /* ---------- состояние забега ---------- */
@@ -61,7 +66,7 @@
       sectionStartX: sectionStartX,
       player: {
         x: Math.min(70, platforms[0].w * 0.4),
-        feetY: groundTop(),
+        feetY: platTop(platforms[0]),
         vy: 0,
         grounded: true
       },
@@ -75,13 +80,13 @@
     lastSectionForHud = -1;
   }
 
-  /** есть ли платформа под координатой x (мир плоский — проверяем только по X) */
+  /** платформа под координатой x (или null, если её нет) */
   function platformUnder(x) {
     for (var i = 0; i < state.platforms.length; i++) {
       var q = state.platforms[i];
-      if (x >= q.x - 8 && x <= q.x + q.w + 8) return true;
+      if (x >= q.x - 8 && x <= q.x + q.w + 8) return q;
     }
-    return false;
+    return null;
   }
 
   function respawn() {
@@ -90,8 +95,9 @@
     for (var i = 0; i < state.platforms.length; i++) {
       if (state.platforms[i].section === state.sectionIndex) { p0 = state.platforms[i]; break; }
     }
-    state.player.x = Math.max(16, p0.x - 40);
-    state.player.feetY = groundTop();
+    // спавн по центру первой платформы секции (не на её краю — оттуда сразу уклон)
+    state.player.x = p0.x + p0.w * 0.5;
+    state.player.feetY = platTop(p0);
     state.player.vy = 0;
     state.player.grounded = true;
     state.lastGroundedAt = performance.now();
@@ -137,16 +143,16 @@
       state.jumpUsed = true;
     }
 
-    // вертикальная физика и приземление
-    var top = groundTop();
+    // вертикальная физика и приземление (по верхней грани конкретной платформы)
     if (!p.grounded) {
       var prevFeet = p.feetY;
       p.vy += D.gravity * dt;
       if (p.vy > 1500) p.vy = 1500; // терминальная скорость — против «туннелирования»
       p.feetY += p.vy * dt;
 
-      if (p.vy >= 0 && prevFeet <= top + 0.5 && p.feetY >= top && platformUnder(p.x)) {
-        p.feetY = top;
+      var under = platformUnder(p.x);
+      if (under && p.vy >= 0 && prevFeet <= platTop(under) + 0.5 && p.feetY >= platTop(under)) {
+        p.feetY = platTop(under);
         p.vy = 0;
         p.grounded = true;
         state.lastGroundedAt = now;
@@ -186,22 +192,97 @@
   }
 
   /** фоновые «звёзды» — дешёвый параллакс, детерминированный от camX */
-  function drawStars(camX) {
-    var layers = [ { f: 0.15, r: 1.2, a: 0.26 }, { f: 0.38, r: 1.7, a: 0.4 } ];
-    ctx.fillStyle = '#8fa3bd';
+  function drawStars(camX, alpha) {
+    var layers = [
+      { f: 0.12, r: 1.1, a: 0.30, band: 96 },
+      { f: 0.30, r: 1.5, a: 0.42, band: 170 },
+      { f: 0.55, r: 2.1, a: 0.55, band: 300 }
+    ];
+    ctx.fillStyle = '#a9b8d6';
     for (var li = 0; li < layers.length; li++) {
       var l = layers[li];
       var off = camX * l.f;
-      var band = 240;
-      var i0 = Math.floor(off / band);
-      ctx.globalAlpha = l.a;
-      for (var i = i0 - 1; i < i0 + W / band + 2; i++) {
-        var x = i * band + hash(i * 7.3 + li * 131.7) * band - off;
-        var y = 12 + hash(i * 3.1 + li * 57.3) * H * 0.4;
+      var i0 = Math.floor(off / l.band);
+      ctx.globalAlpha = l.a * alpha;
+      for (var i = i0 - 1; i < i0 + W / l.band + 2; i++) {
+        var x = i * l.band + hash(i * 7.3 + li * 131.7) * l.band - off;
+        var y = 12 + hash(i * 3.1 + li * 57.3) * H * 0.42;
         ctx.fillRect(x, y, l.r, l.r);
       }
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** «падающие звёзды» — редкие штрихи с хвостом, детерминированные от времени */
+  function drawShooting(now, alpha) {
+    var n = 3;
+    for (var k = 0; k < n; k++) {
+      var period = 5200 + k * 1900;
+      var t = (now / period) % 1;
+      if (t > 0.32) continue; // живёт ~треть периода, остальное время «спит»
+      var life = t / 0.32;
+      var x = W * (0.2 + 0.7 * hash(k * 17.23)) - life * W * 0.85;
+      var y = H * (0.06 + 0.28 * hash(k * 31.7)) + life * H * 0.24;
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.55 * alpha) + ')';
+      ctx.lineWidth = 1.6;
+      var len = 64 * (1 - life);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + len * 0.72, y - len * 0.45);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.9 * alpha) + ')';
+      ctx.beginPath();
+      ctx.arc(x, y, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /** луна или солнце — по времени суток */
+  function drawBody(kind, alpha) {
+    var x = W * 0.78;
+    var y = H * 0.15;
+    if (kind === 'moon') {
+      ctx.fillStyle = 'rgba(214,226,255,' + (0.16 * alpha) + ')'; // ореол
+      ctx.beginPath();
+      ctx.arc(x, y, 34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#e9edf7';
+      ctx.beginPath();
+      ctx.arc(x, y, 21, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(148,163,197,0.55)'; // кратеры
+      ctx.beginPath(); ctx.arc(x - 6, y - 4, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 5, y + 6, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 3, y - 8, 2.2, 0, Math.PI * 2); ctx.fill();
+    } else {
+      var r = 24;
+      ctx.strokeStyle = 'rgba(255,217,122,' + (0.8 * alpha) + ')'; // лучи
+      ctx.lineWidth = 3;
+      for (var k = 0; k < 8; k++) {
+        var a = (k / 8) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(a) * (r + 5), y + Math.sin(a) * (r + 5));
+        ctx.lineTo(x + Math.cos(a) * (r + 14), y + Math.sin(a) * (r + 14));
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(255,217,122,' + (0.18 * alpha) + ')'; // ореол
+      ctx.beginPath();
+      ctx.arc(x, y, r + 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffd98a';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /** палитра неба по времени суток (локальный час) */
+  function skyPalette() {
+    var h = new Date().getHours();
+    if (h >= 9 && h < 17) return { top: '#6fa9e0', bot: '#d3e4f2', stars: 0.10, body: 'sun' }; // день
+    if (h >= 5 && h < 9) return { top: '#2a3050', bot: '#e0926b', stars: 0.75, body: 'sun' };   // утро
+    if (h >= 17 && h < 21) return { top: '#2c2a4d', bot: '#c4687e', stars: 0.85, body: 'moon' }; // вечер
+    return { top: '#0a0e18', bot: '#151c2e', stars: 1, body: 'moon' };                            // ночь
   }
 
   function rr(c, x, y, w, h, r) {
@@ -215,33 +296,39 @@
     c.closePath();
   }
 
-  function draw() {
-    ctx.fillStyle = '#0e1014';
+  function draw(now) {
+    var sky = skyPalette(); // небо подстраивается под время суток (локальный час)
+    var grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, sky.top);
+    grad.addColorStop(1, sky.bot);
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
     var camX = Math.max(0, state.player.x - W * 0.32);
-    drawStars(camX);
+    drawStars(camX, sky.stars);
+    drawShooting(now, sky.stars);
+    drawBody(sky.body, sky.stars);
 
-    var top = groundTop();
     var bottom = H - 16;
 
-    // платформы-плиты с фразами
+    // платформы-плиты с фразами (каждая по своей высоте)
     for (var i = 0; i < state.platforms.length; i++) {
       var q = state.platforms[i];
       if (q.x > camX + W || q.x + q.w < camX) continue; // вне экрана
 
       var sx = q.x - camX;
       var sec = D.sections[q.section];
+      var qtop = platTop(q);
 
       ctx.fillStyle = '#1d232c';
-      rr(ctx, sx, top, q.w, bottom - top, 8);
+      rr(ctx, sx, qtop, q.w, bottom - qtop, 8);
       ctx.fill();
 
       ctx.fillStyle = 'rgba(255,255,255,0.07)'; // блик верхней грани
-      ctx.fillRect(sx + 4, top, q.w - 8, 2);
+      ctx.fillRect(sx + 4, qtop, q.w - 8, 2);
 
       ctx.fillStyle = 'hsl(' + sec.hue + ', 65%, 58%)'; // акцентный край секции
-      ctx.fillRect(sx, top, 4, Math.min(q.h, bottom - top));
+      ctx.fillRect(sx, qtop, 4, Math.min(q.h, bottom - qtop));
 
       // текст: по центру плиты, 1–2 строки
       ctx.font = FONT;
@@ -249,7 +336,7 @@
       ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = q.read ? '#9aa4b0' : '#e9edf3'; // прочитанное — тусклее
       for (var li2 = 0; li2 < q.lines.length; li2++) {
-        ctx.fillText(q.lines[li2], sx + q.w / 2, top + 20 + li2 * 24);
+        ctx.fillText(q.lines[li2], sx + q.w / 2, qtop + 20 + li2 * 24);
       }
     }
 
@@ -293,7 +380,7 @@
     lastTime = now;
     if (paused) return;
     update(dt, now);
-    draw();
+    draw(now);
   }
 
   /* ---------- ввод ---------- */

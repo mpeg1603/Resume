@@ -105,12 +105,12 @@
         var videoSection = el('section', 'resume-videos');
         videoSection.appendChild(el('h2', null, 'Видео'));
         data.videos.forEach(function (v) {
-          var wrap = document.createElement('div');
-          var frame = el('iframe', 'video-card');
+          var wrap = el('div', 'video-card'); // класс на обёртке — правило .video-card iframe матчит
+          var frame = document.createElement('iframe');
           frame.src = toEmbed(v.url);
           frame.title = v.title;
           frame.loading = 'lazy';
-          frame.allowFullscreen = true;
+          frame.setAttribute('allow', 'fullscreen');
           wrap.appendChild(frame);
           wrap.appendChild(el('p', 'video-title', v.title));
           videoSection.appendChild(wrap);
@@ -121,7 +121,7 @@
       /* --- футер: ссылки на меню и в игру --- */
       var footer = el('footer', 'resume-footer');
       footer.appendChild(document.createTextNode('Это резюме можно также пробежать как игру.'));
-      var links = el('div');
+      var links = el('div', 'resume-footer__links');
       var aGame = el('a', null, 'Играть →');
       aGame.href = '#/game';
       var aHome = el('a', null, 'В меню →');

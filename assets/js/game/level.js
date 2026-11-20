@@ -2,6 +2,8 @@
  * level.js — сборка мира игры из фраз data.js.
  * Каждая фраза секции становится платформой: ширина зависит от длины текста,
  * просветы между платформами — случайные, но всегда «перепрыгиваемые».
+ * Платформы получают разную высоту (lift — смещение верхней грани
+ * от базовой линии): мир не плоский, но любой перепад перепрыгивается.
  */
 (function () {
   'use strict';
@@ -30,13 +32,14 @@
   window.Level = {
     /**
      * @param {CanvasRenderingContext2D} measureCtx — контекст для замера текста
-     * @returns {Array} платформы: {x, w, h, section, text, lines, read}
+     * @returns {Array} платформы: {x, w, h, lift, section, text, lines, read}
      */
     build: function (measureCtx) {
       measureCtx.font = FONT;
 
       var platforms = [];
       var x = 0;
+      var lift = 0; // высота верхней грани текущей платформы над базовой линией
 
       D.sections.forEach(function (sec, si) {
         sec.phrases.forEach(function (text) {
@@ -53,8 +56,18 @@
             Math.min(D.maxPlatformWidth,
               Math.max(D.minPlatformWidth, Math.ceil(maxLineW) + 2 * D.textPadX))
           );
-          // глубина «плиты» — чисто визуальная (1–2 строки текста)
+          // глубина «плиты» — чисто визуальная (по числу строк текста)
           var h = Math.max(56, 16 + lines.length * 24);
+
+          // высота платформы: случайная в пределах; над предыдущей не выше maxStepUp —
+          // любой перепад перепрыгивается (высота прыжка ≈ 130px). Первая — плоская.
+          if (platforms.length === 0) {
+            lift = 0;
+          } else {
+            var lo = -D.maxDrop;
+            var hi = Math.min(D.maxLift, lift + D.maxStepUp);
+            lift = Math.round(lo + Math.random() * (hi - lo));
+          }
 
           platforms.push({
             x: x,
@@ -63,6 +76,7 @@
             // даже если визуальная платформа расширена (последняя)
             end: x + w,
             h: h,
+            lift: lift,
             section: si,
             text: text,
             lines: lines,

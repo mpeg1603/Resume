@@ -60,8 +60,9 @@ function makeCtx() {
   var noop = function () {};
   return {
     setTransform: noop, fillRect: noop, clearRect: noop, beginPath: noop,
-    moveTo: noop, arcTo: noop, closePath: noop, fill: noop, stroke: noop,
+    moveTo: noop, lineTo: noop, arcTo: noop, closePath: noop, fill: noop, stroke: noop,
     fillText: noop, arc: noop,
+    createLinearGradient: function () { return { addColorStop: function () {} }; },
     font: '', textAlign: '', textBaseline: '', globalAlpha: 1, lineWidth: 0,
     // «шрифт» ~8.6 px/символ при 17px — достаточно для геометрии мира
     measureText: function (text) { return { width: String(text).length * 8.6 }; }
@@ -102,10 +103,20 @@ require(path.join(__dirname, '..', 'assets', 'js', 'game', 'engine.js'));
 /* ---------- «идеальный» бот: прыгает ровно тогда, когда нужно ---------- */
 
 var D = window.GAME_DATA;
-var TOP = canvasEl.clientHeight - D.groundFromBottom; // верхняя грань платформ
+var TOP = canvasEl.clientHeight - D.groundFromBottom; // базовая линия (верхняя грань платформы с lift = 0)
 // фаза «сознательно не прыгать»: бот молчит, пока нет ни одного падения —
 // первый просвет гарантированно промахиваем (не зависит от случайной ширины)
 var forceFirstMiss = false;
+
+/** дальность горизонтального полёта до приземления на высоте deltaUp от точки отрыва
+    (deltaUp > 0 — цель выше): h(t) = v0·t − g/2·t², корень «на нисходящей» */
+function jumpDistance(v, deltaUp) {
+  var v0 = D.jumpVelocity, g = D.gravity;
+  // (g/2)t² − v0·t + deltaUp = 0 → дискриминант v0² − 2g·deltaUp
+  var disc = v0 * v0 - 2 * g * deltaUp;
+  if (disc < 0) return Infinity; // такой перепад не перепрыгивается в принципе
+  return v * ((v0 + Math.sqrt(disc)) / g);
+}
 
 function botStep() {
   var dbg = window.TextRunner.debug();
@@ -113,18 +124,26 @@ function botStep() {
   if (forceFirstMiss && dbg.misses === 0) return; // нарочное падение на первом просвете
 
   var p = dbg.player, plats = dbg.platforms;
-  var S = null; // начало следующей платформы впереди
+  // платформа под игроком и следующая впереди (высоты учитываем через lift)
+  var under = null, next = null;
   for (var i = 0; i < plats.length; i++) {
-    if (plats[i].x > p.x + 1) { S = plats[i].x; break; }
+    if (!under && p.x >= plats[i].x - 8 && p.x <= plats[i].x + plats[i].w + 8) under = plats[i];
+    if (!next && plats[i].x > p.x + 1) next = plats[i];
   }
-  if (S == null) return;
+  if (under == null || next == null) return;
 
   var speed = D.speedBase + dbg.sectionIndex * D.speedPerSection;
-  var reach = (2 * D.jumpVelocity / D.gravity) * speed; // дальность полного прыжка
-  // «на земле» или в койот-зоне (только что сошёл с края, ещё можно прыгнуть)
-  var groundish = p.grounded || p.feetY <= TOP + 14;
+  // «на земле» или в койот-зоне относительно верхней грани СВОЕЙ платформы
+  var topA = TOP - under.lift;
+  var groundish = p.grounded || p.feetY <= topA + 14;
+  if (!groundish) return;
 
-  if (groundish && p.x >= S - reach) {
+  // точка отрыва: достаточно рано, чтобы долететь до верха следующей платформы,
+  // но не позже края своей (койот-зона короткая — прыгаем ещё «на земле»)
+  var dLand = jumpDistance(speed, topA - (TOP - next.lift));
+  var at = Math.min(next.x - dLand, under.end - 4);
+
+  if (p.x >= at) {
     window.__h['keydown']({ code: 'Space', preventDefault: function () {} });
   }
 }

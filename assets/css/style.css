@@ -411,6 +411,12 @@ a { color: var(--accent); }
   color: var(--muted);
 }
 
+/* ссылки в футере — не «склеенные» inline-соседи */
+.resume-footer__links {
+  display: flex;
+  gap: 18px;
+}
+
 /* ---------- мелочи ---------- */
 
 ::selection { background: rgba(90, 167, 255, 0.35); }
