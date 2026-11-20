@@ -359,17 +359,16 @@
     ctx.font = '800 ' + size + 'px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    var tw = ctx.measureText(sec.title).width;
 
     var tSec = state.elapsed - state.sectionEnterAt;
     var tin = D.titleInSec, thold = D.titleHoldSec, tout = D.titleOutSec;
-    var off; // экранное смещение: вход +W → 0, выход 0 → −(ширина+запас)
+    var off; // экранное смещение: вход +W → 0, выход зеркальный 0 → −W (за левый край)
     if (tSec < tin) {
       off = W * (1 - titleEase(tSec / tin));
     } else if (tSec < tin + thold) {
       off = 0;
     } else if (tSec < tin + thold + tout) {
-      off = -(tw + 48) * titleEase((tSec - tin - thold) / tout);
+      off = -W * titleEase((tSec - tin - thold) / tout);
     } else {
       return; // анимация завершена — название не показываем
     }
