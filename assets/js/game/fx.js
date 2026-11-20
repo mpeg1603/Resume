@@ -33,8 +33,9 @@
     return audioCtx;
   }
 
-  /** тон с огибающей: частота, длительность, громкость, тип осциллятора */
-  function tone(freq, dur, vol, type) {
+  /** тон с огибающей: частота, длительность, громкость, тип осциллятора,
+      опциональный глиссандо вверх (slideTo) — для «вжуха» прыжка */
+  function tone(freq, dur, vol, type, slideTo) {
     var ctx = ensureAudio();
     if (!ctx || ctx.state !== 'running') return;
     try {
@@ -43,8 +44,9 @@
       var gain = ctx.createGain();
       osc.type = type || 'square';
       osc.frequency.setValueAtTime(freq, t0);
+      if (slideTo) osc.frequency.linearRampToValueAtTime(slideTo, t0 + dur * 0.7);
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.linearRampToValueAtTime(vol, t0 + 0.012);
+      gain.gain.linearRampToValueAtTime(vol, t0 + 0.005); // быстрый нарастание — звук «в момент» прыжка
       gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
       osc.connect(gain).connect(ctx.destination);
       osc.start(t0);
@@ -112,9 +114,9 @@
     spawn(2, { x: x - 6, y: y, spMin: 12, spMax: 40, spread: 10, spreadY: 3, vyBase: -30, g: 260, lifeMin: 0.25, lifeMax: 0.5, sizeMin: 1.5, sizeMax: 3.5, color: 'rgba(220,228,240,0.5)' });
   }
 
-  /** прыжок: вспышка вниз + «вжух» */
+  /** прыжок: вспышка вниз + быстрый восходящий «вжух» в момент отрыва (не на пике) */
   function jump(x, y) {
-    tone(300, 0.16, 0.22, 'square');
+    tone(340, 0.13, 0.20, 'triangle', 760);
     spawn(6, { x: x, y: y - 4, spMin: 30, spMax: 90, spread: 18, vyBase: -70, g: 300, lifeMin: 0.3, lifeMax: 0.55, sizeMin: 2, sizeMax: 4, color: 'rgba(255,207,92,0.8)' });
   }
 
