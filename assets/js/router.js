@@ -39,6 +39,12 @@
   window.addEventListener('hashchange', route);
   window.addEventListener('popstate', route);
 
-  // скрипты лежат в конце <body>, DOM уже распарсен — можно сразу
-  route();
+  // engine.js и resume.js грузятся ПОСЛЕ роутера (скрипты в конце <body>) —
+  // первый route() откладываем до готовности DOM: глубокие ссылки (#/game,
+  // #/resume) при первом открытии раньше падали на undefined TextRunner/Resume
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', route);
+  } else {
+    route();
+  }
 })();
