@@ -23,6 +23,25 @@
   // Kenney Pixel Platformer (CC0), row 1 character sheet — flash-free set
   var playerImgs = null; // {runA, runB, jump}: frames available after loading
 
+  // Kenney ground tiles (CC0): травяная верхняя грань + земляное тело колонн платформ
+  var tileImgs = null;  // {grass, dirt}
+  var TILE_PX = 42;     // размер тайла на экране — тот же масштаб, что у спрайта игрока
+
+  function loadTiles() {
+    if (tileImgs || typeof Image === 'undefined') return; // smoke/node — нет DOM
+    tileImgs = {};
+    tileImgs.grass = new Image();
+    tileImgs.grass.src = 'assets/img/tiles/grass.png';
+    tileImgs.dirt = new Image();
+    tileImgs.dirt.src = 'assets/img/tiles/dirt.png';
+  }
+
+  function tilesReady() {
+    return !!tileImgs &&
+      tileImgs.grass.complete && tileImgs.grass.naturalWidth > 0 &&
+      tileImgs.dirt.complete && tileImgs.dirt.naturalWidth > 0;
+  }
+
   /* ---------- геометрия ---------- */
 
   function resize() {
@@ -407,14 +426,32 @@
       var sec = D.sections[q.section];
       var qtop = platTop(q);
 
-      ctx.fillStyle = '#1d232c';
-      rr(ctx, sx, qtop, q.w, bottom - qtop, 8);
-      ctx.fill();
+      if (tilesReady()) {
+        // тайлы Kenney: трава сверху + земля ниже; сетка закреплена за миром (не «плавает» при панорамировании)
+        ctx.save();
+        rr(ctx, sx, qtop, q.w, bottom - qtop, 8);
+        ctx.clip();
+        ctx.imageSmoothingEnabled = false;
+        var wx0 = Math.floor(q.x / TILE_PX) * TILE_PX; // горизонтальная привязка к мировому гриду
+        for (var wy = Math.round(qtop); wy < bottom; wy += TILE_PX) {
+          var timg = (wy === Math.round(qtop)) ? tileImgs.grass : tileImgs.dirt;
+          for (var wx = wx0; wx < q.x + q.w; wx += TILE_PX) {
+            ctx.drawImage(timg, wx - camX, wy, TILE_PX, TILE_PX);
+          }
+        }
+        ctx.fillStyle = 'rgba(8,10,14,0.45)'; // тёмная «вуаль» над тайлами — читаемость текста фраз
+        ctx.fillRect(sx, qtop, q.w, bottom - qtop);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#1d232c';
+        rr(ctx, sx, qtop, q.w, bottom - qtop, 8);
+        ctx.fill();
 
-      ctx.fillStyle = 'rgba(255,255,255,0.07)'; // блик верхней грани
-      ctx.fillRect(sx + 4, qtop, q.w - 8, 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.07)'; // блик верхней грани
+        ctx.fillRect(sx + 4, qtop, q.w - 8, 2);
+      }
 
-      ctx.fillStyle = 'hsl(' + sec.hue + ', 65%, 58%)'; // акцентный край секции
+      ctx.fillStyle = 'hsl(' + sec.hue + ', 65%, 58%)'; // акцентный край секции (поверх всего)
       ctx.fillRect(sx, qtop, 4, Math.min(q.h, bottom - qtop));
 
       // текст: по центру плиты (≤ maxLinesPerPlatform строк; intro-платформа без текста)
@@ -579,6 +616,7 @@
       bindResize();
       bindInput();
       loadPlayerSprites();
+      loadTiles();
 
       buildState();
       window.Hud.init(hudRoot);
