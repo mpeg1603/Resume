@@ -26,8 +26,8 @@
   // Kenney ground tiles (CC0): травяная верхняя грань + земляное тело колонн платформ
   var tileImgs = null;  // {grass, dirt}
   var TILE_PX = 42;     // размер тайла на экране — тот же масштаб, что у спрайта игрока
-  var SPIKE_W = 16;       // ширина колья в просвете: база на верхней грани платформы
-  var SPIKE_DEPTH = 26;   // глубина: остриё уходит вниз, в яму между платформами
+  // геометрия кольев — в GAME_DATA (data.js): spikeW/spikeH/playerHalf,
+  // общие для расстановки в level.js и отрисовки/смерти здесь
 
   function loadTiles() {
     if (tileImgs || typeof Image === 'undefined') return; // smoke/node — нет DOM
@@ -190,8 +190,17 @@
     for (var i = 0; i < state.platforms.length; i++) {
       if (state.platforms[i].section === state.sectionIndex) { p0 = state.platforms[i]; break; }
     }
-    // спавн по центру первой платформы секции (не на её краю — оттуда сразу уклон)
-    state.player.x = p0.x + p0.w * 0.5;
+    // спавн по центру первой платформы секции (не на её краю — оттуда сразу уклон),
+    // и не в смертельной зоне колышка: если рядом стоит один, сдвигаемся на свободную
+    // сторону (два колышка ближе 2·(hw+pH) друг к другу placement не ставит)
+    var sx = p0.x + p0.w * 0.5;
+    for (var sI2 = 0; sI2 < (p0.spikes || []).length; sI2++) {
+      var skx = p0.spikes[sI2].x;
+      if (Math.abs(sx - skx) < D.spikeW / 2 + D.playerHalf + 16) {
+        sx += (skx <= sx) ? D.spikeW / 2 + D.playerHalf + 30 : -(D.spikeW / 2 + D.playerHalf + 30);
+      }
+    }
+    state.player.x = Math.max(p0.x + 8, Math.min(p0.end - 8, sx));
     state.player.feetY = platTop(p0);
     state.player.vy = 0;
     state.player.grounded = true;
@@ -274,18 +283,18 @@
       state.lastStepTick = stepTick;
     }
 
-    // колья в просветах: падение ниже уровня края у заострённого края — смерть (как яма).
-    // При беге и прыжке feetY ≤ platTop, поэтому достают только уже падающего игрока
-    for (var si = 0; !p.grounded && p.vy >= 0 && si < state.platforms.length; si++) {
+    // колья на платформах — касание = смерть (как кактусы в динозаврике): AABB бокса
+    // игрока и колья. Коль выше поверхности, поэтому достают только бегущего/падающего
+    for (var si = 0; si < state.platforms.length; si++) {
       var q2 = state.platforms[si];
       if (!q2.spikes || !q2.spikes.length) continue;
+      if (p.x + D.playerHalf < q2.x - D.spikeH || p.x - D.playerHalf > q2.end + D.spikeH) continue; // далеко от платформы
       var stp = platTop(q2);
-      if (p.feetY <= stp) continue; // выше уровня края — колья не достают
-      for (var sk = 0; !p.grounded && sk < q2.spikes.length; sk++) {
-        var spx2 = q2.spikes[sk].edge === 'left' ? q2.x : q2.end;
-        if (Math.abs(p.x - spx2) <= SPIKE_W / 2) {
-          if (window.Fx) window.Fx.death(p.x, p.feetY); // разлёт в точке падения, не на дне экрана
+      for (var sk = 0; sk < q2.spikes.length; sk++) {
+        if (Math.abs(p.x - q2.spikes[sk].x) < D.spikeW / 2 + D.playerHalf && p.feetY > stp - D.spikeH) {
+          if (window.Fx) window.Fx.death(p.x, p.feetY); // разлёт в точке касания
           respawn();
+          return; // игрок сброшен — дальше живём на следующем кадре
         }
       }
     }
@@ -636,26 +645,6 @@
 
     var bottom = H; // платформа доходит до нижнего края экрана — под ней не видно фон
 
-    // колья вниз в просветах — ДО плит, чтобы «задел» колья закрывало тело платформы:
-    // видно только то, что свисает над ямой. Тёмное железо (hue 218) не путается с травой/землёй
-    ctx.fillStyle = 'hsl(218, 9%, 30%)';
-    for (var spi = 0; spi < state.platforms.length; spi++) {
-      var qs = state.platforms[spi];
-      if (!qs.spikes || !qs.spikes.length) continue;
-      if (qs.x > camX + W || qs.end < camX) continue; // вне экрана
-      var qtopS = platTop(qs);
-      for (var ski = 0; ski < qs.spikes.length; ski++) {
-        var spx = qs.spikes[ski].edge === 'left' ? qs.x : qs.end;
-        var sx2 = spx - camX, hw = SPIKE_W / 2;
-        ctx.beginPath();
-        ctx.moveTo(sx2 - hw, qtopS);
-        ctx.lineTo(sx2 + hw, qtopS);
-        ctx.lineTo(sx2, qtopS + SPIKE_DEPTH);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
-
     // платформы-плиты с фразами (каждая по своей высоте)
     for (var i = 0; i < state.platforms.length; i++) {
       var q = state.platforms[i];
@@ -703,6 +692,26 @@
       }
       ctx.shadowBlur = 0;
       ctx.shadowColor = '';
+    }
+
+    // колья НА платформах — перепрыгиваемые препятствия (как кактусы в динозаврике):
+    // после плит, чтобы полностью стоять на поверхности. Тёмное железо (hue 218)
+    // не путается с травой/землёй и читается издалека
+    ctx.fillStyle = 'hsl(218, 9%, 30%)';
+    for (var spi = 0; spi < state.platforms.length; spi++) {
+      var qs = state.platforms[spi];
+      if (!qs.spikes || !qs.spikes.length) continue;
+      if (qs.x > camX + W || qs.end < camX) continue; // вне экрана
+      var qtopK = platTop(qs);
+      for (var ski = 0; ski < qs.spikes.length; ski++) {
+        var spxK = qs.spikes[ski].x - camX, hwK = D.spikeW / 2;
+        ctx.beginPath();
+        ctx.moveTo(spxK - hwK, qtopK);
+        ctx.lineTo(spxK + hwK, qtopK);
+        ctx.lineTo(spxK, qtopK - D.spikeH);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
 
     // крупное название секции над intro-платформой (влетает справа → улетает влево)

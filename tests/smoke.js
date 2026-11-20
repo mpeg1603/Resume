@@ -140,22 +140,14 @@ function jumpDistance(v, deltaUp) {
 // Эйлера в движке (~1 кадр полёта ≈ v·dt) и даёт боту «человеческий» отрыв
 var JUMP_LAG_MARG = 10;
 
-var __lastMiss = 0;
+// тот же запас, что SPIKE_LAG_MARG в level.js: квантование кадров сдвигает
+// фактический отрыв на ~v·dt позже точки тапа — без него «последний
+// безопасный» прыжок через колышек зачищается с нулевым запасом и бот умирает
+var SPIKE_LAG_MARG = 15;
+
 function botStep() {
   var dbg = window.TextRunner.debug();
   if (!dbg || dbg.ended || dbg.paused) return;
-  if (process.env.SMOKE_DBG && dbg.misses > __lastMiss) {
-    __lastMiss = dbg.misses;
-    var p0 = dbg.player, pl2 = dbg.platforms, i2 = -1;
-    for (var k2 = 0; k2 < pl2.length; k2++) {
-      if (p0.x >= pl2[k2].x && p0.x <= pl2[k2].end) { i2 = k2; break; }
-    }
-    console.log('MISS misses=' + dbg.misses, 'sec=' + dbg.sectionIndex,
-      'x=' + Math.round(p0.x), 'feetY=' + Math.round(p0.feetY), 'vy=' + Math.round(p0.vy),
-      'plats=', JSON.stringify(pl2.slice(Math.max(0, i2 - 1), i2 + 3).map(function (q) {
-        return { x: Math.round(q.x), w: Math.round(q.w), lift: q.lift };
-      })));
-  }
   if (forceFirstMiss && dbg.misses === 0) return; // нарочное падение на первом просвете
 
   var p = dbg.player, plats = dbg.platforms;
@@ -185,6 +177,28 @@ function botStep() {
   // а на JUMP_LAG_MARG px глубже внутрь; отрыв не позже края своей платформы.
   var dLand = jumpDistance(speed, topA - (TOP - next.lift));
   var at = Math.min(next.x - dLand + JUMP_LAG_MARG, under.end - 4);
+
+  // колья на СВОЕЙ платформе впереди — каждый зачищается своим прыжком. Тот же
+  // расчёт окна, что placement в level.js: поздний безопасный отрыв —
+  // spx − (hw+pH) − v·uLo − SPIKE_LAG_MARG, т.е. ЕЩЁ ДО входа в опасную полосу
+  // [spx−hw−pH, spx+hw+pH], с запасом на квантование кадров (~v·dt), и с
+  // достаточной высотой, чтобы ноги остались над остриём на всём пути через неё
+  // (c = spikeH + JUMP_LAG_MARG покрывает дрейф полуявного Эйлера).
+  // min() с точкой отрыва в просвет: колышек ближе края, зачищается раньше.
+  if (under.spikes && under.spikes.length) {
+    var v0s = D.jumpVelocity, gs = D.gravity;
+    var cSp = D.spikeH + JUMP_LAG_MARG;
+    var discS = v0s * v0s - 2 * gs * cSp;
+    if (discS >= 0) {
+      var uLoS = (v0s - Math.sqrt(discS)) / gs;
+      for (var sI = 0; sI < under.spikes.length; sI++) {
+        var spxS = under.spikes[sI].x;
+        if (spxS <= p.x) continue; // сзади — уже зачищен (на земле у колышка не выжить)
+        var latest = spxS - (D.spikeW / 2 + D.playerHalf) - speed * uLoS - SPIKE_LAG_MARG;
+        if (latest < at) at = latest;
+      }
+    }
+  }
 
   if (p.x >= at) {
     window.__h['keydown']({ code: 'Space', preventDefault: function () {} });

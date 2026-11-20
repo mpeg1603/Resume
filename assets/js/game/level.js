@@ -148,14 +148,60 @@
         });
       });
 
-      /* колья вниз в просветах: по одному колышку на каждый край, за которым есть яма —
-         левый край только если слева есть зазор (k > 0), правый — кроме последней платформы.
-         Итого 0–2 на платформу; упавший рядом с краем погибает так же, как в просвете */
+      /* колья НА платформах — перепрыгиваемые препятствия (как кактусы в динозаврике из хрома):
+         0–2 на фразу-платформу, ставятся только там, где ОДИН прыжок зачищает колышек и
+         приземляется обратно на ЭТУ ЖЕ платформу. Intro-платформы без кольев: респаун кладёт
+         игрока в центр первой платформы секции — точка спавна должна быть чистой.
+         Границы выводятся из физики GAME_DATA (те же формулы, что gapRange): чтобы на
+         опасной полосе [spx−hw−pH, spx+hw+pH] ноги оставались выше острия (высота c),
+         отрыв должен попасть в окно ~110 px шириной — колышек стоит не ближе C_left к
+         левому краю и не дальше C_right от правого. Узкая платформа → 0; два колышка
+         только с разнесением ≥ F + запас (у каждого свой прыжок). */
+      var SPIKE_HW = D.spikeW / 2, PLAYER_PH = D.playerHalf;
+      var CLEAR_TOL = 10; // высота над остриём: покрывает дрейф полуявного Эйлера (~4–6 px) и поздний отрыв
+      var SPIKE_LAG_MARG = 15; // запас на «последний безопасный отрыв»: квантование кадров —
+      // тап засчитывается, а фактический отрыв сдвигается на ~v·dt (≈4 px) позже
+      function spikeWindows(v) {
+        var v0 = D.jumpVelocity, g = D.gravity, c = D.spikeH + CLEAR_TOL;
+        var disc = v0 * v0 - 2 * g * c; // ½g·u² − v0·u + c = 0 → u = (v0 ± √disc)/g
+        if (disc < 0) return null; // не зачищается в принципе
+        var T = 2 * v0 / g; // полное время прыжка туда-обратно на той же высоте
+        return { F: v * T, uLo: (v0 - Math.sqrt(disc)) / g, uHi: (v0 + Math.sqrt(disc)) / g };
+      }
       for (var k = 0; k < platforms.length; k++) {
         var qk = platforms[k];
         qk.spikes = [];
-        if (k > 0 && Math.random() < D.spikeChance) qk.spikes.push({ edge: 'left' });
-        if (k < platforms.length - 1 && Math.random() < D.spikeChance) qk.spikes.push({ edge: 'right' });
+        if (qk.intro || k === platforms.length - 1) continue; // intro — точка спавна
+        // после падения; последняя платформа — финишная прямая, без кольев
+        var vSec = D.speedBase + qk.section * D.speedPerSection;
+        var sw = spikeWindows(vSec);
+        if (!sw) continue;
+        // допустимая полоса центра колышка. Безопасный отрыв — окно
+        // [spx+(hw+pH)−v·uHi, spx−(hw+pH)−v·uLo]: ноги выше c на всём пути через
+        // опасную полосу. Отсюда: (1) ПОЗДНИЙ отрыв не раньше левого края;
+        // (2) приземление с позднего отрыва остаётся ВНУТРИ платформы — бегун
+        // зачищает колышек и ещё бежит по земле до просвета.
+        var cLeft = SPIKE_HW + PLAYER_PH + sw.uLo * vSec + 6 + SPIKE_LAG_MARG;
+        // Прыжок в просвет с отрывом у края предыдущей платформы (такой делает и бот,
+        // и человек) уносит ноги до prevEnd − 4 + F — за левый край qk на (F − gap).
+        // Коль не ставится ближе этой точки + опасная полоса, чтобы приземление из
+        // просвета было чистым и до кола оставался заход на его зачистку:
+        var worstLand = platforms[k - 1].end - 4 + sw.F;
+        cLeft = Math.max(cLeft, worstLand - qk.x + SPIKE_HW + PLAYER_PH + sw.uLo * vSec + SPIKE_LAG_MARG);
+        var cRight = sw.F - (SPIKE_HW + PLAYER_PH) - sw.uLo * vSec - 8 + SPIKE_LAG_MARG;
+        var lo = Math.ceil(qk.x + cLeft), hi = Math.floor(qk.end - cRight);
+        if (hi <= lo) continue; // слишком узко даже для одного колышка
+        var n = Math.random() < D.spikeChance ? 1 : 0;
+        if (!n) continue;
+        var minSpacing = sw.F + 30; // после приземления с первого прыжка остаётся свой заход на второй
+        if (hi - lo >= minSpacing && Math.random() < 0.5) n = 2;
+        if (n === 1) {
+          qk.spikes.push({ x: Math.round(lo + Math.random() * (hi - lo)) });
+        } else {
+          var free = hi - lo - minSpacing; // ≥ 0 по проверке выше
+          var s1 = Math.round(lo + Math.random() * free);
+          qk.spikes.push({ x: s1 }, { x: Math.round(s1 + minSpacing + Math.random() * (hi - s1 - minSpacing)) });
+        }
       }
 
       return platforms;
