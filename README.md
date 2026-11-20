@@ -39,6 +39,12 @@ Resume/
             └── hud.js            # прогресс, пауза, финал со ссылкой на резюме
 ```
 
+## Credits
+
+- **Kenney** ([kenney.nl](https://www.kenney.nl)) — пиксельные спрайты персонажа
+  (скафандр: бег и прыжок) и тайлы земли/травы из пака *Pixel Platformer*,
+  лицензия CC0.
+
 ## Деплой
 
 GitHub Pages: Settings → Pages → branch `main`, root `/`.
