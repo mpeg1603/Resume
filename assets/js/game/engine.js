@@ -496,6 +496,13 @@
     jumpRequestAt = performance.now();
   }
 
+  function cutJump() {
+    // variable jump: отпускание кнопки в подъёме обрезает скорость —
+    // короткий тап поднимает примерно на ⅓ полной высоты, удержание — полный прыжок
+    var p = state && state.player;
+    if (p && p.vy < 0 && -p.vy > D.jumpCutVelocity) p.vy = -D.jumpCutVelocity;
+  }
+
   function togglePause(forceOn) {
     if (!started || ended) return;
     var on = forceOn == null ? !paused : !!forceOn;
@@ -530,11 +537,23 @@
       }
     });
 
+    // отпускание Space/↑ — jump-cut (см. cutJump)
+    window.addEventListener('keyup', function (e) {
+      if (!started || ended) return;
+      if (e.code === 'Space' || e.code === 'ArrowUp') cutJump();
+    });
+
     canvas.addEventListener('pointerdown', function (e) {
       if (!started || ended) return;
       if (typeof e.button === 'number' && e.button > 0) return; // только ЛКМ/тап
       e.preventDefault();
       requestJump();
+    });
+
+    // отпускание пальца — jump-cut для мобильных тапов
+    canvas.addEventListener('pointerup', function () {
+      if (!started || ended) return;
+      cutJump();
     });
 
     canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
