@@ -271,6 +271,36 @@
     ctx.globalAlpha = 1;
   }
 
+  /** облака — два параллакс-слоя (дальние мельче и тусклее), детерминированы от camX */
+  function drawClouds(camX, dayness) {
+    var layers = [
+      { f: 0.18, band: 420, r: 9, yFrac: 0.08, a: 0.14 + 0.10 * dayness }, // дальний
+      { f: 0.34, band: 560, r: 14, yFrac: 0.18, a: 0.20 + 0.16 * dayness } // ближний
+    ];
+    ctx.fillStyle = '#ffffff';
+    for (var li = 0; li < layers.length; li++) {
+      var l = layers[li];
+      var off = camX * l.f;
+      var i0 = Math.floor(off / l.band);
+      ctx.globalAlpha = l.a;
+      for (var i = i0 - 1; i <= i0 + W / l.band + 2; i++) {
+        var x = i * l.band + hash(i * 9.7 + li * 43.1) * l.band - off;
+        var y = H * l.yFrac + hash(i * 5.3 + li * 11.9) * H * 0.08;
+        cloudBlob(x, y, l.r);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** одно облако — три сгруппированных блоба */
+  function cloudBlob(x, y, r) {
+    ctx.beginPath();
+    ctx.arc(x - r * 0.9, y + r * 0.25, r * 0.7, 0, Math.PI * 2);
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.arc(x + r * 0.9, y + r * 0.3, r * 0.75, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   /** «падающие звёзды» — редкие штрихи с хвостом, детерминированные от времени */
   function drawShooting(now, alpha) {
     var n = 3;
@@ -337,10 +367,10 @@
   /** палитра неба по времени суток (локальный час) */
   function skyPalette() {
     var h = new Date().getHours();
-    if (h >= 9 && h < 17) return { top: '#6fa9e0', bot: '#d3e4f2', stars: 0.10, body: 'sun' }; // день
-    if (h >= 5 && h < 9) return { top: '#2a3050', bot: '#e0926b', stars: 0.75, body: 'sun' };   // утро
-    if (h >= 17 && h < 21) return { top: '#2c2a4d', bot: '#c4687e', stars: 0.85, body: 'moon' }; // вечер
-    return { top: '#0a0e18', bot: '#151c2e', stars: 1, body: 'moon' };                            // ночь
+    if (h >= 9 && h < 17) return { top: '#6fa9e0', bot: '#d3e4f2', stars: 0.10, cl: 1.0, body: 'sun' }; // день
+    if (h >= 5 && h < 9) return { top: '#2a3050', bot: '#e0926b', stars: 0.75, cl: 0.7, body: 'sun' };   // утро
+    if (h >= 17 && h < 21) return { top: '#2c2a4d', bot: '#c4687e', stars: 0.85, cl: 0.5, body: 'moon' }; // вечер
+    return { top: '#0a0e18', bot: '#151c2e', stars: 1, cl: 0.25, body: 'moon' };                            // ночь
   }
 
   function rr(c, x, y, w, h, r) {
@@ -412,6 +442,7 @@
 
     var camX = Math.max(0, state.player.x - W * 0.32);
     drawStars(camX, sky.stars);
+    drawClouds(camX, sky.cl); // облака: параллакс медленнее звёзд и платформ
     drawShooting(now, sky.stars);
     drawBody(sky.body, sky.stars);
 
