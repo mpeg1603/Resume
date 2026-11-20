@@ -18,6 +18,7 @@
   var shake = 0;          // амплитуда тряски (px), затухает в update()
   var shakeX = 0, shakeY = 0;
   var audioCtx = null;    // AudioContext — лениво, после жеста пользователя
+  var soundOn = false;     // звук выключен по умолчанию — включается кнопкой-динамиком
   var MAX_PARTICLES = 420;
 
   /* ---------- звук: Web Audio синтез (без файлов) ---------- */
@@ -36,6 +37,7 @@
   /** тон с огибающей: частота, длительность, громкость, тип осциллятора,
       опциональный глиссандо вверх (slideTo) — для «вжуха» прыжка */
   function tone(freq, dur, vol, type, slideTo) {
+    if (!soundOn) return; // звук выключен — ни одного узла не создаём (включая отложенные setTimeout-тоны)
     var ctx = ensureAudio();
     if (!ctx || ctx.state !== 'running') return;
     try {
@@ -57,6 +59,7 @@
   /** шумовой импульс с затуханием — для «шагов» и ударов;
       cutoff — lowpass-фильтр: срезает верх, чтобы шаг был глухим «тук», а не щелчком */
   function noise(dur, vol, cutoff) {
+    if (!soundOn) return; // звук выключен — ни одного узла не создаём
     var ctx = ensureAudio();
     if (!ctx || ctx.state !== 'running') return;
     try {
@@ -184,6 +187,37 @@
     ctx.globalAlpha = 1;
   }
 
+  /* ---------- переключатель звука: кнопки-динамики (только иконка, без текста) ---------- */
+
+  var ICON_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/>' +
+    '<path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>';
+  var ICON_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/>' +
+    '<line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+
+  /** иконка и aria-label одной кнопки: «выключить», если звук включён */
+  function setSoundIcon(btn) {
+    btn.innerHTML = soundOn ? ICON_ON : ICON_OFF;
+    btn.setAttribute('aria-label', soundOn ? 'Выключить звук' : 'Включить звук');
+    btn.title = soundOn ? 'Выключить звук игры' : 'Включить звук игры';
+  }
+
+  /** синхронизирует все кнопки-динамики (верхняя панель, пауза, главное меню) */
+  function syncSoundButtons() {
+    var btns = document.querySelectorAll('.sound-toggle');
+    for (var i = 0; i < btns.length; i++) setSoundIcon(btns[i]);
+  }
+
+  /** подвешивает клик на одну кнопку-динамик: состояние глобальное, кнопки обновляются все */
+  function bindSoundButton(btn) {
+    setSoundIcon(btn);
+    btn.addEventListener('click', function () {
+      soundOn = !soundOn;
+      syncSoundButtons();
+    });
+  }
+
   /* ---------- публичное API ---------- */
 
   var Fx = {
@@ -197,7 +231,11 @@
     land: land,
     death: death,
     section: section,
-    finish: finish
+    finish: finish,
+    isSound: function () { return soundOn; },
+    setSound: function (on) { soundOn = !!on; syncSoundButtons(); },
+    bindSoundButton: bindSoundButton,
+    syncSoundButtons: syncSoundButtons
   };
 
   window.Fx = Fx;

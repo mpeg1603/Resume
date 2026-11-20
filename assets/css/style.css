@@ -126,6 +126,7 @@ a { color: var(--accent); }
 /* ---------- ЛЭНДИНГ ---------- */
 
 #screen-welcome {
+  position: relative; /* якорь для кнопки-динамика в углу */
   min-height: 100dvh;
   display: none;
 }
@@ -296,6 +297,39 @@ a { color: var(--accent); }
   line-height: 1;
   cursor: pointer;
 }
+
+/* кнопки-динамики (иконка без текста): верхняя панель, пауза и главное меню */
+.hud-sound-btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: rgba(21, 26, 33, 0.85);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.hud-sound-btn svg { width: 20px; height: 20px; }
+
+.welcome-sound {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top));
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: rgba(21, 26, 33, 0.85);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.welcome-sound svg { width: 20px; height: 20px; }
 
 .hud-toast {
   position: absolute;

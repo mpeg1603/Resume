@@ -49,6 +49,10 @@
       });
       topbar.appendChild(pauseBtn);
 
+      var soundBtn = el('button', 'hud-sound-btn sound-toggle'); // иконка-динамик, без текста
+      if (window.Fx) window.Fx.bindSoundButton(soundBtn);
+      topbar.appendChild(soundBtn);
+
       container.appendChild(topbar);
 
       /* --- тост --- */
@@ -149,6 +153,10 @@
       var home = el('a', 'btn btn-secondary', 'В меню');
       home.href = '#/';
       actions.appendChild(home);
+
+      var soundBtn = el('button', 'hud-sound-btn sound-toggle'); // иконка-динамик, без текста
+      if (window.Fx) window.Fx.bindSoundButton(soundBtn);
+      actions.appendChild(soundBtn);
 
       card.appendChild(actions);
       panel.appendChild(card);
