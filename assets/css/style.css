@@ -15,7 +15,7 @@
   --muted: #a6adcd;     /* subtext0 */
   --accent: #89b4fa;    /* blue */
   --danger: #f38ba8;    /* red */
-  --radius: 14px;
+  --radius: 2px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
@@ -45,7 +45,7 @@
   color: var(--muted);
   background: transparent;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 5px 12px;
   cursor: pointer;
   transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
@@ -215,7 +215,7 @@ a { color: var(--accent); }
   align-items: center;
   gap: 12px;
   padding: 8px 14px;
-  border-radius: 14px;
+  border-radius: var(--radius);
   background: rgba(10, 13, 20, 0.55); /* читается и днём, и ночью поверх любого неба */
   backdrop-filter: blur(8px);
 }
@@ -237,7 +237,7 @@ a { color: var(--accent); }
 .hud-progress {
   flex: 1;
   height: 8px;
-  border-radius: 99px;
+  border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
@@ -252,7 +252,7 @@ a { color: var(--accent); }
   flex: 0 0 auto;
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: var(--radius);
   border: 1px solid var(--line);
   background: rgba(21, 26, 33, 0.85);
   color: var(--text);
@@ -267,7 +267,7 @@ a { color: var(--accent); }
   left: 50%;
   transform: translateX(-50%) translateY(-8px);
   padding: 10px 18px;
-  border-radius: 99px;
+  border-radius: var(--radius);
   background: rgba(21, 26, 33, 0.92);
   border: 1px solid var(--line);
   font-size: 15px;
@@ -320,7 +320,7 @@ a { color: var(--accent); }
 }
 .hud-stat {
   background: var(--panel-2);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 12px 8px;
 }
 .hud-stat b {
@@ -372,7 +372,7 @@ a { color: var(--accent); }
 }
 .skill-chips li {
   padding: 6px 12px;
-  border-radius: 99px;
+  border-radius: var(--radius);
   background: var(--panel-2);
   border: 1px solid var(--line);
   font-family: var(--mono);
@@ -440,7 +440,7 @@ a { color: var(--accent); }
   margin-top: 16px;
   padding: 14px 16px;
   background: var(--panel-2);
-  border-radius: 12px;
+  border-radius: var(--radius);
 }
 .exp-highlight h4 {
   margin: 0 0 10px;
