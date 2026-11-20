@@ -573,8 +573,6 @@
       lastTime = performance.now();
       cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(frame);
-
-      window.Hud.toast('Прыгай по фразам своего резюме!', 2600);
     },
 
     stop: function () {
