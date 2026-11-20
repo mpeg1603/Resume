@@ -1,18 +1,66 @@
 /* =========================================================
-   style.css — тёмная тема, mobile-first.
+   style.css — терминальная тёмная тема, mobile-first.
    Три экрана: #screen-welcome / #screen-game / #screen-resume
+   Темы: Catppuccin Mocha (дефолт) и Dracula — переключаются
+   атрибутом data-theme на <html> (theme.js + инлайн в <head>).
    ========================================================= */
 
+/* Catppuccin Mocha — дефолтная тема */
 :root {
-  --bg: #0e1014;
-  --panel: #151a21;
-  --panel-2: #1b212a;
-  --line: #262d38;
-  --text: #e9edf3;
-  --muted: #9aa4b0;
-  --accent: #5aa7ff;
-  --danger: #ff6b6b;
+  --bg: #1e1e2e;        /* base */
+  --panel: #2a2e3f;     /* surface0 */
+  --panel-2: #303446;   /* surface1 */
+  --line: #45475a;      /* overlay0 */
+  --text: #cdd6f4;      /* text */
+  --muted: #a6adcd;     /* subtext0 */
+  --accent: #89b4fa;    /* blue */
+  --danger: #f38ba8;    /* red */
   --radius: 14px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* Dracula — альтернативная тема */
+[data-theme="dracula"] {
+  --bg: #282a36;
+  --panel: #343746;
+  --panel-2: #44475a;
+  --line: #414458;
+  --text: #f8f8f2;
+  --muted: #9aa0b8;     /* comment, но ярче для читаемости мелкого текста */
+  --accent: #bd93f9;    /* purple */
+  --danger: #ff5555;
+}
+
+/* переключатель тем — компактные «терминальные» кнопки вверху страницы */
+.theme-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.theme-switch {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.theme-switch:hover { color: var(--text); border-color: var(--muted); }
+.theme-switch.on {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06); /* подсветка активной — нейтральная к теме */
+}
+/* в резюме строка выравнивается по левому краю контента */
+.theme-row--resume {
+  max-width: 780px;
+  margin: 0 auto 0;
+  padding: calc(20px + env(safe-area-inset-top)) 20px 0;
 }
 
 * { box-sizing: border-box; }
@@ -57,6 +105,7 @@ a { color: var(--accent); }
 
 .welcome-kicker {
   margin: 0 0 10px;
+  font-family: var(--mono);
   font-size: 13px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -91,6 +140,8 @@ a { color: var(--accent); }
   display: block;
   width: min(100%, 420px);
   border-radius: var(--radius);
+  font-family: var(--mono); /* терминальные «кнопки-команды» */
+  letter-spacing: 0.01em;
   text-decoration: none;
   text-align: center;
   cursor: pointer;
@@ -170,12 +221,14 @@ a { color: var(--accent); }
 }
 
 .hud-section {
+  font-family: var(--mono);
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
 }
 .hud-count {
+  font-family: var(--mono);
   font-size: 12px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -322,15 +375,21 @@ a { color: var(--accent); }
   border-radius: 99px;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  font-size: 13.5px;
+  font-family: var(--mono);
+  font-size: 13px;
   color: var(--text);
   transition: border-color 0.15s ease;
 }
 
 .resume h2 {
   margin: 40px 0 14px;
-  font-size: clamp(20px, 5vw, 26px);
-  letter-spacing: -0.01em;
+  font-family: var(--mono); /* терминальный дух: заголовки секций как в консоли */
+  font-size: clamp(19px, 5vw, 24px);
+  letter-spacing: 0.02em;
+}
+.resume h2::before {
+  content: "> ";
+  color: var(--accent); /* промпт-маркер */
 }
 
 .resume-about ul {

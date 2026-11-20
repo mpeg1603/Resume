@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Резюме Владимира Болкунова — C# / .NET / Unity. Интерактивная игра «текстовый раннер» и читаемая страница резюме." />
   <title>Болкунов Владимир · резюме</title>
+  <script>
+    /* тема до первой отрисовки — без «мигания»: localStorage → data-theme на <html> */
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('resume-theme'); } catch (e) {}
+      document.documentElement.setAttribute(
+        'data-theme', t === 'dracula' ? 'dracula' : 'catppuccin'
+      );
+    })();
+  </script>
   <link rel="stylesheet" href="assets/css/style.css" />
 </head>
 <body>
@@ -13,6 +23,10 @@
     <!-- ЭКРАН 1: лэндинг (#/) -->
     <section id="screen-welcome" class="screen" aria-label="Лэндинг">
       <div class="welcome-inner">
+        <div class="theme-row" role="group" aria-label="Тема сайта">
+          <button type="button" class="theme-switch" data-theme="catppuccin">mocha</button>
+          <button type="button" class="theme-switch" data-theme="dracula">dracula</button>
+        </div>
         <p class="welcome-kicker">резюме в двух режимах</p>
         <h1 class="welcome-name">Болкунов&nbsp;Владимир</h1>
         <p class="welcome-role">C# · .NET · Unity · геймдизайн</p>
@@ -37,11 +51,16 @@
 
     <!-- ЭКРАН 3: резюме (#/resume) -->
     <section id="screen-resume" class="screen screen-resume" aria-label="Резюме">
+      <div class="theme-row theme-row--resume" role="group" aria-label="Тема сайта">
+        <button type="button" class="theme-switch" data-theme="catppuccin">mocha</button>
+        <button type="button" class="theme-switch" data-theme="dracula">dracula</button>
+      </div>
       <article id="resume-root" class="resume"></article>
     </section>
 
   </main>
 
+  <script src="assets/js/theme.js"></script>
   <script src="assets/js/data.js"></script>
   <script src="assets/js/router.js"></script>
   <script src="assets/js/welcome.js"></script>
