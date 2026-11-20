@@ -58,9 +58,9 @@
     return H - D.groundFromBottom;
   }
 
-  /** верхняя грань конкретной платформы (базовая линия минус её подъём) */
+  /** верхняя грань конкретной платформы (базовая линия минус её подъём, плюс общий подъём на строку текста) */
   function platTop(q) {
-    return groundTop() - q.lift;
+    return groundTop() - q.lift - D.platformRaise;
   }
 
   /* ---------- спрайты игрока (Kenney Pixel Platformer, CC0) ----------
@@ -493,8 +493,9 @@
       ctx.shadowColor = 'rgba(8,12,26,0.55)'; // тень — читаемость при дневной (тонкой) вуали
       ctx.shadowBlur = 4;
       ctx.fillStyle = q.read ? '#9aa4b0' : '#e9edf3'; // прочитанное — тусклее
+      // текст опущен на строку: платформа поднята, а фраза теперь на фоне земли (не травы)
       for (var li2 = 0; li2 < q.lines.length; li2++) {
-        ctx.fillText(q.lines[li2], sx + q.w / 2, qtop + 20 + li2 * 24);
+        ctx.fillText(q.lines[li2], sx + q.w / 2, qtop + 20 + D.platformRaise + li2 * 24);
       }
       ctx.shadowBlur = 0;
       ctx.shadowColor = '';
