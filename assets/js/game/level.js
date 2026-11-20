@@ -126,26 +126,6 @@
         x += w + gap;
       }
 
-      /** «сложное место»: разбивка фразы по словам на подплатформы */
-      function addWordSplit(text) {
-        var words = text.split(' ');
-        for (var i = 0; i < words.length; i += D.wordChunkWords) {
-          var chunk = words.slice(i, i + D.wordChunkWords).join(' ');
-          var cw = Math.max(
-            D.wordSplitMinW,
-            Math.ceil(measureCtx.measureText(chunk).width) + 2 * D.textPadX
-          );
-          var pick = pickLift(cw, D.splitGapMin, D.splitGapMax);
-          lift = pick[0];
-          platforms.push({
-            x: x, w: cw, end: x + cw, h: 56, lift: lift,
-            section: curSection, text: chunk, lines: [chunk], read: false
-          });
-          var sgap = Math.round(pick[1] + Math.random() * (pick[2] - pick[1]));
-          x += cw + sgap; // узкие просветы — быстрые перепрыгивания
-        }
-      }
-
       D.sections.forEach(function (sec, si) {
         curSection = si;
 
@@ -162,12 +142,7 @@
         x += D.introPlatformW + gap;
 
         sec.phrases.forEach(function (phrase) {
-          if (typeof phrase === 'object' && phrase.wordSplit) {
-            addWordSplit(phrase.text); // «сложное место» секции
-          } else {
-            var text = typeof phrase === 'string' ? phrase : phrase.text;
-            addPhrase(text);
-          }
+          addPhrase(phrase);
         });
       });
 
