@@ -454,7 +454,6 @@
       if (q.x > camX + W || q.x + q.w < camX) continue; // вне экрана
 
       var sx = q.x - camX;
-      var sec = D.sections[q.section];
       var qtop = platTop(q);
 
       if (tilesReady()) {
@@ -482,9 +481,6 @@
         ctx.fillStyle = 'rgba(255,255,255,0.07)'; // блик верхней грани
         ctx.fillRect(sx + 4, qtop, q.w - 8, 2);
       }
-
-      ctx.fillStyle = 'hsl(' + sec.hue + ', 65%, 58%)'; // акцентный край секции (поверх всего)
-      ctx.fillRect(sx, qtop, 4, Math.min(q.h, bottom - qtop));
 
       // текст: по центру плиты (≤ maxLinesPerPlatform строк; intro-платформа без текста)
       ctx.font = FONT;
