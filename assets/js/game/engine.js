@@ -75,8 +75,13 @@
       sectionIndex: 0,
       readTotal: 0,
       misses: 0,
-      elapsed: 0
+      elapsed: 0,
+      sectionEnterAt: 0, // game-time входа в текущую секцию (тайминг надписи)
+      phraseCount: 0     // сколько «читаемых» платформ (без intro-платформ)
     };
+    for (var pc = 0; pc < platforms.length; pc++) {
+      if (!platforms[pc].intro) state.phraseCount++;
+    }
     lastSectionForHud = -1;
   }
 
@@ -127,7 +132,12 @@
     for (var i = state.sectionStartX.length - 1; i >= 0; i--) {
       if (p.x >= state.sectionStartX[i] - 20) { si = i; break; }
     }
-    state.sectionIndex = si;
+    if (si !== state.sectionIndex) {
+      state.sectionIndex = si;
+      // вход в новую секцию — перезапуск анимации надписи (game-time,
+      // поэтому на паузе замирает вместе с забегом)
+      state.sectionEnterAt = state.elapsed;
+    }
 
     var speed = D.speedBase + state.sectionIndex * D.speedPerSection;
     p.x += speed * dt;
@@ -296,6 +306,55 @@
     c.closePath();
   }
 
+  /** один easing для входа и выхода надписи секции (easeInOutCubic) */
+  function titleEase(t) {
+    t = Math.max(0, Math.min(1, t));
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  /** Крупное название секции над intro-платформой:
+      влетает с правого края экрана → держится → улетает влево.
+      Якорь по центру экрана (над сплошной платформой), тайминг — от game-time
+      (state.elapsed − state.sectionEnterAt): на паузе анимация замирает. */
+  function drawSectionTitle() {
+    var q = null; // intro-платформа текущей секции
+    for (var i = 0; i < state.platforms.length; i++) {
+      if (state.platforms[i].intro && state.platforms[i].section === state.sectionIndex) {
+        q = state.platforms[i]; break;
+      }
+    }
+    if (!q) return;
+
+    var sec = D.sections[q.section];
+    var size = Math.max(30, Math.min(58, W * 0.1));
+    ctx.font = '800 ' + size + 'px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    var tw = ctx.measureText(sec.title).width;
+
+    var tSec = state.elapsed - state.sectionEnterAt;
+    var tin = D.titleInSec, thold = D.titleHoldSec, tout = D.titleOutSec;
+    var off; // экранное смещение: вход +W → 0, выход 0 → −(ширина+запас)
+    if (tSec < tin) {
+      off = W * (1 - titleEase(tSec / tin));
+    } else if (tSec < tin + thold) {
+      off = 0;
+    } else if (tSec < tin + thold + tout) {
+      off = -(tw + 48) * titleEase((tSec - tin - thold) / tout);
+    } else {
+      return; // анимация завершена — название не показываем
+    }
+
+    var cx = W * 0.5 + off;
+    var cy = platTop(q) - size * 0.62; // над платформой, на фоне неба
+    ctx.shadowColor = 'rgba(8,12,24,0.5)';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = 'hsl(' + sec.hue + ', 70%, 72%)';
+    ctx.fillText(sec.title, cx, cy);
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = '';
+  }
+
   function draw(now) {
     var sky = skyPalette(); // небо подстраивается под время суток (локальный час)
     var grad = ctx.createLinearGradient(0, 0, 0, H);
@@ -330,7 +389,7 @@
       ctx.fillStyle = 'hsl(' + sec.hue + ', 65%, 58%)'; // акцентный край секции
       ctx.fillRect(sx, qtop, 4, Math.min(q.h, bottom - qtop));
 
-      // текст: по центру плиты, 1–2 строки
+      // текст: по центру плиты (≤ maxLinesPerPlatform строк; intro-платформа без текста)
       ctx.font = FONT;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
@@ -339,6 +398,9 @@
         ctx.fillText(q.lines[li2], sx + q.w / 2, qtop + 20 + li2 * 24);
       }
     }
+
+    // крупное название секции над intro-платформой (влетает справа → улетает влево)
+    drawSectionTitle();
 
     // игрок: капсула со «взглядом вперёд», лёгкий squash & stretch
     var p = state.player;
@@ -367,7 +429,7 @@
     window.Hud.update(
       (state.sectionIndex + 1) + '/' + D.sections.length + ' · ' + sec.title,
       state.readTotal,
-      state.platforms.length
+      state.phraseCount // только «читаемые» платформы (без intro-платформ)
     );
   }
 

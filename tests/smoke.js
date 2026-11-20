@@ -104,6 +104,23 @@ require(path.join(__dirname, '..', 'assets', 'js', 'game', 'engine.js'));
 
 var D = window.GAME_DATA;
 var TOP = canvasEl.clientHeight - D.groundFromBottom; // базовая линия (верхняя грань платформы с lift = 0)
+
+/** меняет «разрешение» канваса и пере-запускает забег под новый размер */
+function setSize(w, h) {
+  canvasEl.clientWidth = w;
+  canvasEl.clientHeight = h;
+  window.innerWidth = w;
+  window.innerHeight = h;
+  TOP = h - D.groundFromBottom; // геометрия мира зависит от H (groundTop)
+}
+
+/** сколько intro-платформ в забеге (у них read:true с рождения — в readTotal не входят) */
+function introCount(plats) {
+  var n = 0;
+  for (var i = 0; i < plats.length; i++) if (plats[i].intro) n++;
+  return n;
+}
+
 // фаза «сознательно не прыгать»: бот молчит, пока нет ни одного падения —
 // первый просвет гарантированно промахиваем (не зависит от случайной ширины)
 var forceFirstMiss = false;
@@ -176,13 +193,16 @@ function check(cond, msg) {
   if (!cond) failures.push(msg);
 }
 
-/* Забег A: без ошибок — ни одного падения, все фразы прочитаны */
+/* Забег A: без ошибок — ни одного падения, все фразы прочитаны (desktop-размер) */
 window.TextRunner.start();
 forceFirstMiss = false;
 var fa = pump(20000);
 var a = window.TextRunner.debug();
 check(a && a.ended, 'забег A: финиш достигнут (' + (a ? a.elapsed.toFixed(1) : '?') + ' с, ' + fa + ' кадров)');
-check(a.readTotal === a.platforms.length, 'забег A: все фразы прочитаны (' + a.readTotal + '/' + a.platforms.length + ')');
+check(
+  a.readTotal === a.platforms.length - introCount(a.platforms),
+  'забег A: все фразы прочитаны (' + a.readTotal + '/' + (a.platforms.length - introCount(a.platforms)) + ')'
+);
 check(a.misses === 0, 'забег A: без падений (misses=' + a.misses + ')');
 check(a.elapsed > 30 && a.elapsed < 180, 'забег A: длительность в разумных пределах (' + a.elapsed.toFixed(1) + ' с)');
 
@@ -193,7 +213,28 @@ var fb = pump(20000);
 var b = window.TextRunner.debug();
 check(b && b.ended, 'забег B: финиш достигнут после падения (' + (b ? b.elapsed.toFixed(1) : '?') + ' с, ' + fb + ' кадров)');
 check(b.misses >= 1, 'забег B: зафиксировано падение (misses=' + b.misses + ')');
-check(b.readTotal === b.platforms.length, 'забег B: все фразы прочитаны (' + b.readTotal + '/' + b.platforms.length + ')');
+check(
+  b.readTotal === b.platforms.length - introCount(b.platforms),
+  'забег B: все фразы прочитаны (' + b.readTotal + '/' + (b.platforms.length - introCount(b.platforms)) + ')'
+);
+
+/* Мобильные прогоны D/E: физика от ширины не зависит, но мир-геометрия и рендер — от H/W;
+   проверяем добегаемость на смартфонных размерах (портрет) */
+var mobileSizes = [[390, 844], [430, 932]];
+for (var mi = 0; mi < mobileSizes.length; mi++) {
+  var ms = mobileSizes[mi];
+  window.TextRunner.stop();
+  setSize(ms[0], ms[1]);
+  forceFirstMiss = false;
+  window.TextRunner.start();
+  var fm = pump(20000);
+  var m = window.TextRunner.debug();
+  check(m && m.ended, 'мобильный прогон (' + ms[0] + '×' + ms[1] + '): финиш достигнут (' + (m ? m.elapsed.toFixed(1) : '?') + ' с, ' + fm + ' кадров)');
+  check(
+    m.readTotal === m.platforms.length - introCount(m.platforms),
+    'мобильный прогон (' + ms[0] + '×' + ms[1] + '): все фразы прочитаны (' + m.readTotal + '/' + (m.platforms.length - introCount(m.platforms)) + ')'
+  );
+}
 
 /* Забег C: stop() корректно останавливает цикл */
 window.TextRunner.stop();

@@ -131,7 +131,7 @@
       var card = el('div', 'hud-panel-card');
 
       card.appendChild(el('h2', 'hud-panel-title', 'Пауза'));
-      card.appendChild(el('p', 'hud-panel-sub', 'Платформы подождут. Фразы никуда не денутся.'));
+      card.appendChild(el('p', 'hud-panel-sub', 'Резюме ждёт'));
 
       var actions = el('div', 'hud-panel-actions');
       var resumeBtn = el('button', 'btn btn-primary', 'Продолжить');
