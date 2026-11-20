@@ -113,7 +113,7 @@
       toResume.href = '#/resume';
       actions.appendChild(toResume);
 
-      var again = el('button', 'btn btn-secondary', 'Забегать ещё раз');
+      var again = el('button', 'btn btn-secondary', 'Пробежать ещё раз');
       again.addEventListener('click', function () { onRestart(); });
       actions.appendChild(again);
 
