@@ -44,13 +44,20 @@
 
   /* ---------- геометрия ---------- */
 
+  var lastDpr = 0; // dpr, использованный при последнем resize — ловим смену zoom/монитора
+
   function resize() {
     W = canvas.clientWidth || window.innerWidth;
     H = canvas.clientHeight || window.innerHeight;
     var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    // no-op-защита: если backing-store и dpr не изменились — не сбрасываем канвас.
+    // Сброс canvas.width/height очищает контекст и может «мигнуть» сценой
+    // (причина моргания на HiDPI-машинах при смене devicePixelRatio).
+    if (dpr === lastDpr && canvas.width === Math.round(W * dpr) && canvas.height === Math.round(H * dpr)) return;
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    lastDpr = dpr;
   }
 
   /** базовая линия мира — верхняя грань платформы с lift = 0 (первой) */
@@ -545,6 +552,11 @@
   function frame(now) {
     rafId = requestAnimationFrame(frame);
     if (!started || ended) return; // финал/пауза: кадр замёрзает под панелью
+    // devicePixelRatio может смениться БЕЗ resize-события (zoom браузера, перенос окна
+    // между мониторами) — тогда backing-store устаревает и сцена «моргает». Ловим
+    // каждый кадр дешёвым чтением dpr; сам resize() прервёт no-op.
+    var dprNow = Math.min(window.devicePixelRatio || 1, 3);
+    if (dprNow !== lastDpr) resize();
     var dt = Math.min((now - lastTime) / 1000, 0.033);
     lastTime = now;
     if (paused) return;
