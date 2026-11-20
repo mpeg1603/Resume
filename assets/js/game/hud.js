@@ -138,6 +138,10 @@
       resumeBtn.addEventListener('click', function () { onResume(); });
       actions.appendChild(resumeBtn);
 
+      var toResumeLink = el('a', 'btn btn-secondary', 'К резюме');
+      toResumeLink.href = '#/resume';
+      actions.appendChild(toResumeLink);
+
       var restartBtn = el('button', 'btn btn-secondary', 'Начать заново');
       restartBtn.addEventListener('click', function () { onRestart(); });
       actions.appendChild(restartBtn);
