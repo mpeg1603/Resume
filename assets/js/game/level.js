@@ -148,6 +148,16 @@
         });
       });
 
+      /* колья вниз в просветах: по одному колышку на каждый край, за которым есть яма —
+         левый край только если слева есть зазор (k > 0), правый — кроме последней платформы.
+         Итого 0–2 на платформу; упавший рядом с краем погибает так же, как в просвете */
+      for (var k = 0; k < platforms.length; k++) {
+        var qk = platforms[k];
+        qk.spikes = [];
+        if (k > 0 && Math.random() < D.spikeChance) qk.spikes.push({ edge: 'left' });
+        if (k < platforms.length - 1 && Math.random() < D.spikeChance) qk.spikes.push({ edge: 'right' });
+      }
+
       return platforms;
     }
   };

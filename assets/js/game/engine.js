@@ -26,6 +26,8 @@
   // Kenney ground tiles (CC0): травяная верхняя грань + земляное тело колонн платформ
   var tileImgs = null;  // {grass, dirt}
   var TILE_PX = 42;     // размер тайла на экране — тот же масштаб, что у спрайта игрока
+  var SPIKE_W = 16;       // ширина колья в просвете: база на верхней грани платформы
+  var SPIKE_DEPTH = 26;   // глубина: остриё уходит вниз, в яму между платформами
 
   function loadTiles() {
     if (tileImgs || typeof Image === 'undefined') return; // smoke/node — нет DOM
@@ -270,6 +272,22 @@
     if (p.grounded && stepTick !== state.lastStepTick) {
       if (window.Fx) window.Fx.step(p.x - 20, p.feetY);
       state.lastStepTick = stepTick;
+    }
+
+    // колья в просветах: падение ниже уровня края у заострённого края — смерть (как яма).
+    // При беге и прыжке feetY ≤ platTop, поэтому достают только уже падающего игрока
+    for (var si = 0; !p.grounded && p.vy >= 0 && si < state.platforms.length; si++) {
+      var q2 = state.platforms[si];
+      if (!q2.spikes || !q2.spikes.length) continue;
+      var stp = platTop(q2);
+      if (p.feetY <= stp) continue; // выше уровня края — колья не достают
+      for (var sk = 0; !p.grounded && sk < q2.spikes.length; sk++) {
+        var spx2 = q2.spikes[sk].edge === 'left' ? q2.x : q2.end;
+        if (Math.abs(p.x - spx2) <= SPIKE_W / 2) {
+          if (window.Fx) window.Fx.death(p.x, p.feetY); // разлёт в точке падения, не на дне экрана
+          respawn();
+        }
+      }
     }
 
     // упал в просвет → небольшой откат к началу текущей секции (без штрафа прогресса)
@@ -590,6 +608,26 @@
     drawParallax(camX, sky, sectionHue());
 
     var bottom = H; // платформа доходит до нижнего края экрана — под ней не видно фон
+
+    // колья вниз в просветах — ДО плит, чтобы «задел» колья закрывало тело платформы:
+    // видно только то, что свисает над ямой. Тёмное железо (hue 218) не путается с травой/землёй
+    ctx.fillStyle = 'hsl(218, 9%, 30%)';
+    for (var spi = 0; spi < state.platforms.length; spi++) {
+      var qs = state.platforms[spi];
+      if (!qs.spikes || !qs.spikes.length) continue;
+      if (qs.x > camX + W || qs.end < camX) continue; // вне экрана
+      var qtopS = platTop(qs);
+      for (var ski = 0; ski < qs.spikes.length; ski++) {
+        var spx = qs.spikes[ski].edge === 'left' ? qs.x : qs.end;
+        var sx2 = spx - camX, hw = SPIKE_W / 2;
+        ctx.beginPath();
+        ctx.moveTo(sx2 - hw, qtopS);
+        ctx.lineTo(sx2 + hw, qtopS);
+        ctx.lineTo(sx2, qtopS + SPIKE_DEPTH);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
 
     // платформы-плиты с фразами (каждая по своей высоте)
     for (var i = 0; i < state.platforms.length; i++) {
