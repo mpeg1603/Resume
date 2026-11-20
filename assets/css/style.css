@@ -244,8 +244,8 @@ a { color: var(--accent); }
   width: min(100%, 520px);
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 30px 26px calc(26px + env(safe-area-inset-bottom));
+  border-radius: var(--radius); /* тот же радиус, что у карточек резюме */
+  padding: 28px 20px calc(28px + env(safe-area-inset-bottom)); /* те же отступы, что у .resume и .exp-card */
   text-align: center;
 }
 
