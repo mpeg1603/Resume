@@ -52,8 +52,9 @@
     } catch (e) {}
   }
 
-  /** шумовой импульс с затуханием — для «шагов» и ударов */
-  function noise(dur, vol) {
+  /** шумовой импульс с затуханием — для «шагов» и ударов;
+      cutoff — lowpass-фильтр: срезает верх, чтобы шаг был глухим «тук», а не щелчком */
+  function noise(dur, vol, cutoff) {
     var ctx = ensureAudio();
     if (!ctx || ctx.state !== 'running') return;
     try {
@@ -64,10 +65,18 @@
       for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.7);
       var src = ctx.createBufferSource();
       src.buffer = buf;
+      var chain = src;
+      if (cutoff) {
+        var f = ctx.createBiquadFilter();
+        f.type = 'lowpass';
+        f.frequency.value = cutoff;
+        chain.connect(f);
+        chain = f;
+      }
       var gain = ctx.createGain();
       gain.gain.setValueAtTime(vol, t0);
       gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      src.connect(gain).connect(ctx.destination);
+      chain.connect(gain).connect(ctx.destination);
       src.start(t0);
     } catch (e) {}
   }
@@ -97,9 +106,9 @@
 
   /* ---------- события-эффекты (координаты — из движка, мировые) ---------- */
 
-  /** ходьба: мелкая пыль у ног + тихий шаг */
+  /** ходьба: мелкая пыль у ног + глухой тихий «тук» (lowpass — не бьёт по ушам) */
   function step(x, y) {
-    noise(0.05, 0.10);
+    noise(0.045, 0.06, 700);
     spawn(2, { x: x - 6, y: y, spMin: 12, spMax: 40, spread: 10, spreadY: 3, vyBase: -30, g: 260, lifeMin: 0.25, lifeMax: 0.5, sizeMin: 1.5, sizeMax: 3.5, color: 'rgba(220,228,240,0.5)' });
   }
 

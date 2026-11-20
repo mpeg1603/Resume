@@ -264,8 +264,9 @@
       p.grounded = false;
     }
 
-    // шаги по земле: ритм привязан к циклу run-спрайта (~7 fps, тот же делитель, что в draw)
-    var stepTick = Math.floor(state.elapsed / 0.14);
+    // шаги по земле: звук реже, чем анимация бегущего спрайта (делился бы по ушам),
+    // ~4 шага в секунду; делитель в draw() для run-спрайта остаётся 0.14
+    var stepTick = Math.floor(state.elapsed / 0.25);
     if (p.grounded && stepTick !== state.lastStepTick) {
       if (window.Fx) window.Fx.step(p.x - 20, p.feetY);
       state.lastStepTick = stepTick;
