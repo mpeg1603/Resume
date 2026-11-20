@@ -79,7 +79,9 @@
        * Возвращает [lift, gapLo, gapHi]; плоский ход всегда исполним (фолбэк).
        */
       function pickLift(w, gMin, gMax) {
-        var lo = -D.maxDrop;
+        // базовый подъём (minLift) + добавка: платформа не проваливается ниже,
+        // иначе нижние строки фразы уплывают под нижний край экрана
+        var lo = Math.max(-D.maxDrop, D.minLift);
         var hi = Math.min(D.maxLift, lift + D.maxStepUp); // не выше предыдущей на maxStepUp
         var feasible = [];
         for (var L = hi; L >= lo; L -= 5) {
