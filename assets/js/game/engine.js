@@ -446,7 +446,7 @@
     drawShooting(now, sky.stars);
     drawBody(sky.body, sky.stars);
 
-    var bottom = H - 16;
+    var bottom = H; // платформа доходит до нижнего края экрана — под ней не видно фон
 
     // платформы-плиты с фразами (каждая по своей высоте)
     for (var i = 0; i < state.platforms.length; i++) {
