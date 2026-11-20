@@ -31,6 +31,42 @@
   --danger: #ff5555;
 }
 
+/* Nord — арктический минимализм (официальная палитра) */
+[data-theme="nord"] {
+  --bg: #2e3440;        /* polar night */
+  --panel: #3b4252;     /* snow storm */
+  --panel-2: #434c5e;
+  --line: #4c566a;
+  --text: #d8dee9;
+  --muted: #a7aebc;
+  --accent: #88c0d0;    /* frost */
+  --danger: #bf616a;    /* flame */
+}
+
+/* Gruvbox — тёплый ретро-терминал (официальная палитра, dark) */
+[data-theme="gruvbox"] {
+  --bg: #282828;
+  --panel: #3c3836;
+  --panel-2: #504945;
+  --line: #665c54;
+  --text: #ebdbb2;
+  --muted: #a89984;     /* gray */
+  --accent: #fe8019;    /* orange */
+  --danger: #fb4934;
+}
+
+/* Tokyo Night — глубокий индиго с неоном (официальная палитра) */
+[data-theme="tokyonight"] {
+  --bg: #1a1b26;
+  --panel: #1f2335;
+  --panel-2: #24283b;
+  --line: #3b4261;
+  --text: #c0caf5;
+  --muted: #8b93b8;
+  --accent: #7aa2f3;    /* blue */
+  --danger: #f7768e;
+}
+
 /* переключатель тем — компактные «терминальные» кнопки вверху страницы */
 .theme-row {
   display: flex;

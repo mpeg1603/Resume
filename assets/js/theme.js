@@ -1,5 +1,6 @@
 /**
- * theme.js — темы сайта (наборы CSS-переменных): Catppuccin Mocha (дефолт) и Dracula.
+ * theme.js — темы сайта (наборы CSS-переменных):
+ * Catppuccin Mocha (дефолт), Dracula, Nord, Gruvbox, Tokyo Night.
  * Тема применяется атрибутом <html data-theme="...">, выбор сохраняется в localStorage
  * и восстанавливается инлайном в <head> до первой отрисовки (без «мигания» темы).
  * Кнопки-переключатели .theme-switch (data-theme=имя) подключаются здесь.
@@ -7,7 +8,7 @@
 (function () {
   'use strict';
 
-  var THEMES = ['catppuccin', 'dracula'];
+  var THEMES = ['catppuccin', 'dracula', 'nord', 'gruvbox', 'tokyonight'];
   var DEFAULT = 'catppuccin';
   var KEY = 'resume-theme';
 

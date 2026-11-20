@@ -10,8 +10,9 @@
     (function () {
       var t = null;
       try { t = localStorage.getItem('resume-theme'); } catch (e) {}
+      var THEMES = ['catppuccin', 'dracula', 'nord', 'gruvbox', 'tokyonight'];
       document.documentElement.setAttribute(
-        'data-theme', t === 'dracula' ? 'dracula' : 'catppuccin'
+        'data-theme', THEMES.indexOf(t) !== -1 ? t : 'catppuccin'
       );
     })();
   </script>
@@ -26,6 +27,9 @@
         <div class="theme-row" role="group" aria-label="Тема сайта">
           <button type="button" class="theme-switch" data-theme="catppuccin">mocha</button>
           <button type="button" class="theme-switch" data-theme="dracula">dracula</button>
+          <button type="button" class="theme-switch" data-theme="nord">nord</button>
+          <button type="button" class="theme-switch" data-theme="gruvbox">gruvbox</button>
+          <button type="button" class="theme-switch" data-theme="tokyonight">tokyo night</button>
         </div>
         <p class="welcome-kicker">резюме в двух режимах</p>
         <h1 class="welcome-name">Болкунов&nbsp;Владимир</h1>
@@ -54,6 +58,9 @@
       <div class="theme-row theme-row--resume" role="group" aria-label="Тема сайта">
         <button type="button" class="theme-switch" data-theme="catppuccin">mocha</button>
         <button type="button" class="theme-switch" data-theme="dracula">dracula</button>
+        <button type="button" class="theme-switch" data-theme="nord">nord</button>
+        <button type="button" class="theme-switch" data-theme="gruvbox">gruvbox</button>
+        <button type="button" class="theme-switch" data-theme="tokyonight">tokyo night</button>
       </div>
       <article id="resume-root" class="resume"></article>
     </section>
