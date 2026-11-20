@@ -132,6 +132,7 @@
       misses: 0,
       elapsed: 0,
       sectionEnterAt: 0, // game-time входа в текущую секцию (тайминг надписи)
+      lastStepTick: -1,  // ритм шагов привязан к циклу run-спрайта (~7 fps)
       phraseCount: 0     // сколько «читаемых» платформ (без intro-платформ)
     };
     for (var pc = 0; pc < platforms.length; pc++) {
@@ -190,8 +191,9 @@
     if (si !== state.sectionIndex) {
       state.sectionIndex = si;
       // вход в новую секцию — перезапуск анимации надписи (game-time,
-      // поэтому на паузе замирает вместе с забегом)
+      // поэтому на паузе замирает вместе с забегом) + искры цвета секции
       state.sectionEnterAt = state.elapsed;
+      if (window.Fx) window.Fx.section(D.sections[si].hue, p.x, p.feetY - 20);
     }
 
     var speed = D.speedBase + state.sectionIndex * D.speedPerSection;
@@ -206,6 +208,7 @@
       p.grounded = false;
       pendingJump = false;
       state.jumpUsed = true;
+      if (window.Fx) window.Fx.jump(p.x, p.feetY);
     }
 
     // вертикальная физика и приземление (по верхней грани конкретной платформы)
@@ -222,14 +225,25 @@
         p.grounded = true;
         state.lastGroundedAt = now;
         state.jumpUsed = false;
+        if (window.Fx) window.Fx.land(p.x, p.feetY); // пыль + лёгкая тряска камеры
       }
     } else if (!platformUnder(p.x)) {
       // сошёл с края платформы — начинаем падение (койот-тайм даёт окно для прыжка)
       p.grounded = false;
     }
 
+    // шаги по земле: ритм привязан к циклу run-спрайта (~7 fps, тот же делитель, что в draw)
+    var stepTick = Math.floor(state.elapsed / 0.14);
+    if (p.grounded && stepTick !== state.lastStepTick) {
+      if (window.Fx) window.Fx.step(p.x - 20, p.feetY);
+      state.lastStepTick = stepTick;
+    }
+
     // упал в просвет → небольшой откат к началу текущей секции (без штрафа прогресса)
-    if (p.feetY > H + 80) respawn();
+    if (p.feetY > H + 80) {
+      if (window.Fx) window.Fx.death(p.x, H); // разлёт у нижнего края экрана
+      respawn();
+    }
 
     // «прочитанные» фразы: платформа полностью пройдена (по исходному краю, q.end)
     for (var j = 0; j < state.platforms.length; j++) {
@@ -243,6 +257,7 @@
 
   function finish() {
     ended = true;
+    if (window.Fx) window.Fx.finish(state.player.x, H / 2); // фанфары + конфетти
     window.Hud.showEndPanel(
       { time: state.elapsed, misses: state.misses, readTotal: state.readTotal },
       function () { TextRunner.restart(); }
@@ -440,12 +455,19 @@
   }
 
   function draw(now) {
+    // тряска камеры (приземление/смерть): мелкий translate — сцена едет вместе со всем кадром
+    var shX = 0, shY = 0;
+    if (window.Fx) { var off = window.Fx.offset(); shX = off.x; shY = off.y; }
+    ctx.save();
+    if (shX || shY) ctx.translate(shX, shY);
+
     var sky = skyPalette(); // небо подстраивается под время суток (локальный час)
     var grad = ctx.createLinearGradient(0, 0, 0, H);
     grad.addColorStop(0, sky.top);
     grad.addColorStop(1, sky.bot);
     ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
+    // запас +8px по краям, чтобы при тряске не было видно «обрезанного» градиента
+    ctx.fillRect(-8, -8, W + 16, H + 16);
 
     var camX = Math.max(0, state.player.x - W * 0.32);
     drawStars(camX, sky.stars);
@@ -534,6 +556,11 @@
       ctx.fill();
     }
 
+    // частицы — поверх всего, в мировых координатах (camX тот же, что у платформ)
+    if (window.Fx) window.Fx.draw(ctx, camX);
+
+    ctx.restore(); // конец тряски камеры; DOM-HUD translate не нужен
+
     // HUD
     var sec = D.sections[state.sectionIndex];
     if (state.sectionIndex !== lastSectionForHud) {
@@ -561,6 +588,7 @@
     lastTime = now;
     if (paused) return;
     update(dt, now);
+    if (window.Fx) window.Fx.update(dt); // частицы/тряска шагают вместе с миром
     draw(now);
   }
 
@@ -575,6 +603,7 @@
   function requestJump() {
     pendingJump = true;
     jumpRequestAt = performance.now();
+    if (window.Fx) window.Fx.unlock(); // жеста пользователя — момент «разбудить» AudioContext
   }
 
   function cutJump() {

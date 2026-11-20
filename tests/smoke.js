@@ -61,6 +61,7 @@ function makeCtx() {
   return {
     setTransform: noop, fillRect: noop, clearRect: noop, beginPath: noop,
     moveTo: noop, lineTo: noop, arcTo: noop, closePath: noop, fill: noop, stroke: noop,
+    save: noop, restore: noop, translate: noop, // тряска камеры (fx.js) — no-op в симуляции
     fillText: noop, arc: noop,
     createLinearGradient: function () { return { addColorStop: function () {} }; },
     font: '', textAlign: '', textBaseline: '', globalAlpha: 1, lineWidth: 0,
