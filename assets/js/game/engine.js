@@ -470,7 +470,8 @@
             ctx.drawImage(timg, wx - camX, wy, TILE_PX, TILE_PX);
           }
         }
-        ctx.fillStyle = 'rgba(8,10,14,0.45)'; // тёмная «вуаль» над тайлами — читаемость текста фраз
+        // «вуаль» адаптивна: днём тоньше (тайлы светлее), ночью плотнее
+        ctx.fillStyle = 'rgba(8,10,14,' + (0.2 + 0.25 * sky.stars).toFixed(3) + ')';
         ctx.fillRect(sx, qtop, q.w, bottom - qtop);
         ctx.restore();
       } else {
@@ -489,10 +490,14 @@
       ctx.font = FONT;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
+      ctx.shadowColor = 'rgba(8,12,26,0.55)'; // тень — читаемость при дневной (тонкой) вуали
+      ctx.shadowBlur = 4;
       ctx.fillStyle = q.read ? '#9aa4b0' : '#e9edf3'; // прочитанное — тусклее
       for (var li2 = 0; li2 < q.lines.length; li2++) {
         ctx.fillText(q.lines[li2], sx + q.w / 2, qtop + 20 + li2 * 24);
       }
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = '';
     }
 
     // крупное название секции над intro-платформой (влетает справа → улетает влево)

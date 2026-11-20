@@ -163,6 +163,10 @@ a { color: var(--accent); }
   display: flex;
   align-items: center;
   gap: 12px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: rgba(10, 13, 20, 0.55); /* читается и днём, и ночью поверх любого неба */
+  backdrop-filter: blur(8px);
 }
 
 .hud-section {
