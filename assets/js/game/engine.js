@@ -522,10 +522,10 @@
     ctx.imageSmoothingEnabled = false;
     var scroll = camX * D.backdropParallax; // параллакс: полоса скользит медленнее камеры
     var j0 = Math.floor(scroll / iw);      // мировой индекс тайла у левого края экрана
-    var off = scroll - j0 * iw;            // его смещение на экране, в [0, iw)
+    var off = -(scroll % iw);              // его смещение на экране, в [-(iw-1), 0]: движется влево с камерой
     for (var i = 0; ; i++) {
       var x = Math.round(off + i * iw);
-      if (x >= W + iw) break;             // за правым краем экрана
+      if (x >= W) break;                  // за правым краем экрана
       // паритет стабилен при движении камеры: (j + phase) & 1 === 1 — отражённая копия той же полосы
       var src = (((j0 + i + mirrorPhase) & 1) === 1) ? mirroredCanvas(img) : img;
       ctx.drawImage(src, x, bottomY - ih, iw, ih);
