@@ -44,10 +44,12 @@
       tileImgs.dirt.complete && tileImgs.dirt.naturalWidth > 0;
   }
 
-  // Пиксель-арт полоса задника (тайлится по горизонтали): одна на забег — сначала
-  // случайное состояние, дальше по кругу; обычная и её отражённая версия чередуются.
+  // Пиксель-арт полоса задника (тайлится по горизонтали: соседние тайлы чередуют обычную и
+  // отражённую копию): одна на забег — сначала случайная, дальше по кругу; паритет зеркала
+  // тоже случайный на забег.
   var backdrops = null;   // [Image, ...]: доступны после загрузки
-  var bgState = -1;       // 0..(2n-1): floor(bgState/n) — полоса, bgState % n === 1 — её зеркало
+  var bgIndex = -1;       // индекс полосы текущего забега (-1 → ещё не выбрано)
+  var mirrorPhase = 0;    // паритет зеркала: тайл (j + phase) & 1 === 1 — отражённая копия
   var fillCache = {};      // img.src -> цвет нижнего ряда (заполнение под изображением)
   var mirrorCache = {};    // img.src -> offscreen-канвас с горизонтальным зеркалом
 
@@ -69,14 +71,13 @@
     return true;
   }
 
-  /** выбор полосы на забег: первое состояние случайное из {обычная, зеркало} по каждой
-      полосе, дальше +1 по кругу — обычная и отражённая версии чередуются, стык тайла
-      тогда совпадает с серединой полосы и не виден */
+  /** выбор полосы и паритета зеркала на забег: полоса — сначала случайная, дальше по кругу;
+      паритет — случайный (с какой из двух ориентаций начинается чередование по тайлам) */
   function pickBackdrop() {
     var n = D.backdrops.length;
     if (!n) return;
-    var m = 2 * n;
-    bgState = (bgState < 0) ? Math.floor(Math.random() * m) : (bgState + 1) % m;
+    bgIndex = (bgIndex < 0) ? Math.floor(Math.random() * n) : (bgIndex + 1) % n;
+    mirrorPhase = Math.floor(Math.random() * 2);
   }
 
   /** цвет нижнего ряда полосы — для заполнения под изображением: небо не должно
@@ -505,24 +506,28 @@
     }
   }
 
-  /** дальний план: одна пиксель-арт полоса на забег (тайлится по горизонтали); обычная и
-      её отражённая версия чередуются — стык тайла тогда не виден. Масштаб из GAME_DATA
-      (нативный размер большеваты), пиксели чёткие. Нижний край приподнят над линией
-      горизонта, поэтому холмы выглядывают из-за платформ; под изображением закрашиваем
-      его собственным цветом нижнего ряда: небо не просвечивает под задником.
+  /** дальний план: одна пиксель-арт полоса на забег (тайлится по горизонтали): соседние тайлы
+      чередуют обычную и отражённую копию — каждый стык становится «зеркальным» и не виден.
+      Масштаб из GAME_DATA (нативный размер большеваты), пиксели чёткие. Нижний край
+      приподнят над линией горизонта, поэтому холмы выглядывают из-за платформ; под изображением
+      закрашиваем его собственным цветом нижнего ряда: небо не просвечивает под задником.
       В node-smoke DOM нет → функция ничего не рисует (только небо выше). */
   function drawParallax(camX) {
     if (!backdropReady()) return; // browser-only: в node Image не определён
-    var n = D.backdrops.length;
-    var img = backdrops[Math.floor(bgState / n)];
-    var src = (bgState % n === 1) ? mirroredCanvas(img) : img; // зеркало той же полосы
+    var img = backdrops[bgIndex];
     // целые пиксели — без субпиксельных швов на стыке тайлов и под нижним краем
-    var iw = Math.round(src.width * D.backdropScale);
-    var ih = Math.round(src.height * D.backdropScale);
+    var iw = Math.round(img.naturalWidth * D.backdropScale);
+    var ih = Math.round(img.naturalHeight * D.backdropScale);
     var bottomY = Math.round(groundTop() - D.platformRaise - D.backdropLift); // чуть выше горизонта
     ctx.imageSmoothingEnabled = false;
-    var off = Math.round(-((camX * D.backdropParallax) % iw)); // параллакс: полоса скользит медленнее камеры
-    for (var x = off; x < W + iw; x += iw) {
+    var scroll = camX * D.backdropParallax; // параллакс: полоса скользит медленнее камеры
+    var j0 = Math.floor(scroll / iw);      // мировой индекс тайла у левого края экрана
+    var off = scroll - j0 * iw;            // его смещение на экране, в [0, iw)
+    for (var i = 0; ; i++) {
+      var x = Math.round(off + i * iw);
+      if (x >= W + iw) break;             // за правым краем экрана
+      // паритет стабилен при движении камеры: (j + phase) & 1 === 1 — отражённая копия той же полосы
+      var src = (((j0 + i + mirrorPhase) & 1) === 1) ? mirroredCanvas(img) : img;
       ctx.drawImage(src, x, bottomY - ih, iw, ih);
     }
     // под полосой — её же цвет нижнего ряда; старт на 1px выше кромки — без светящейся щели
@@ -635,6 +640,7 @@
       if (tilesReady()) {
         // тайлы Kenney: трава сверху + земля ниже; сетка закреплена за миром (не «плавает» при панорамировании)
         ctx.save();
+        ctx.beginPath(); // сброс пути: clip не должен накапливать суб-пути предыдущих фигур
         ctx.rect(sx, qtop, q.w, bottom - qtop); // прямые углы (без скругления)
         ctx.clip();
         ctx.imageSmoothingEnabled = false;
@@ -651,6 +657,7 @@
         ctx.restore();
       } else {
         ctx.fillStyle = '#1d232c';
+        ctx.beginPath();
         ctx.rect(sx, qtop, q.w, bottom - qtop); // прямые углы (без скругления)
         ctx.fill();
 
@@ -852,7 +859,7 @@
       loadPlayerSprites();
       loadTiles();
       loadBackdrops();
-      pickBackdrop(); // первый забег — случайное состояние (обычная полоса или её зеркало)
+      pickBackdrop(); // первый забег — случайная полоса и паритет зеркала
 
       buildState();
       window.Hud.init(hudRoot);
@@ -883,7 +890,7 @@
       ended = false;
       paused = false;
       pendingJump = false;
-      pickBackdrop(); // новый забег — следующее состояние: обычная и отражённая версии чередуются
+      pickBackdrop(); // новый забег — следующая полоса по кругу, новый паритет зеркала
       buildState();
       window.Hud.hidePanels();
       lastTime = performance.now();
