@@ -44,36 +44,60 @@
       tileImgs.dirt.complete && tileImgs.dirt.naturalWidth > 0;
   }
 
-  // Kenney Pixel Platformer (CC0), Tiles — объекты дальнего плана: кусты, камни, акценты
-  var parallaxImgs = null; // {bushA..D, rockA..C, accent}: кадры доступны после загрузки
-  var tintCache = {};      // ключ "name_hue_night" -> offscreen-канвас с наложенным тинтом
+  // Пиксель-арт полосы задника (бесшовные, тайлятся по горизонтали): одна на забег —
+  // сначала случайная, потом по кругу. Список в GAME_DATA.backdrops.
+  var backdrops = null;   // [Image, ...]: доступны после загрузки
+  var bgIndex = -1;       // индекс полосы текущего забега (-1 → ещё не выбрано)
+  var fillCache = {};      // img.src -> цвет нижнего ряда (заполнение под изображением)
 
-  function loadParallax() {
-    if (parallaxImgs || typeof Image === 'undefined') return; // smoke/node — нет DOM
-    parallaxImgs = {};
-    var srcs = [
-      ['bushA', 'assets/img/parallax/bush_a.png'],
-      ['bushB', 'assets/img/parallax/bush_b.png'],
-      ['bushC', 'assets/img/parallax/bush_c.png'],
-      ['bushD', 'assets/img/parallax/bush_d.png'],
-      ['rockA', 'assets/img/parallax/rock_a.png'],
-      ['rockB', 'assets/img/parallax/rock_b.png'],
-      ['rockC', 'assets/img/parallax/rock_c.png'],
-      ['accent', 'assets/img/parallax/accent.png']
-    ];
-    for (var i = 0; i < srcs.length; i++) {
+  function loadBackdrops() {
+    if (backdrops || typeof Image === 'undefined') return; // smoke/node — нет DOM
+    backdrops = [];
+    for (var i = 0; i < D.backdrops.length; i++) {
       var img = new Image();
-      img.src = srcs[i][1];
-      parallaxImgs[srcs[i][0]] = img;
+      img.src = D.backdrops[i];
+      backdrops.push(img);
     }
   }
 
-  function parallaxReady() {
-    if (!parallaxImgs) return false;
-    for (var k in parallaxImgs) {
-      if (!parallaxImgs[k].complete || parallaxImgs[k].naturalWidth <= 0) return false;
+  function backdropReady() {
+    if (!backdrops) return false;
+    for (var k in backdrops) {
+      if (!backdrops[k].complete || backdrops[k].naturalWidth <= 0) return false;
     }
     return true;
+  }
+
+  /** выбор полосы на забег: первый раз случайная, дальше по кругу — каждый забег со своей */
+  function pickBackdrop() {
+    var n = D.backdrops.length;
+    if (!n) return;
+    bgIndex = (bgIndex < 0) ? Math.floor(Math.random() * n) : (bgIndex + 1) % n;
+  }
+
+  /** цвет нижнего ряда полосы — для заполнения под изображением: небо не должно
+      просвечивать под задником. Нижний ряд однотонный, поэтому среднее точно;
+      взвешивание по альфе страхует от шумов сглаживания. */
+  function backdropFillColor(img) {
+    var key = img.src;
+    if (fillCache[key]) return fillCache[key];
+    var c = document.createElement('canvas');
+    c.width = img.naturalWidth;
+    c.height = 1;
+    var cc = c.getContext('2d');
+    cc.drawImage(img, 0, img.naturalHeight - 1, img.naturalWidth, 1, 0, 0, img.naturalWidth, 1);
+    var d = cc.getImageData(0, 0, img.naturalWidth, 1).data;
+    var r = 0, g = 0, b = 0, a = 0;
+    for (var i = 0; i < d.length; i += 4) {
+      var al = d[i + 3];
+      r += d[i] * al; g += d[i + 1] * al; b += d[i + 2] * al; a += al;
+    }
+    if (!a) return fillCache[key] = '#000';
+    var hex = function (v) {
+      v = Math.max(0, Math.min(255, Math.round(v / a)));
+      return ('0' + v.toString(16)).slice(-2);
+    };
+    return fillCache[key] = '#' + hex(r) + hex(g) + hex(b);
   }
 
   /* ---------- геометрия ---------- */
@@ -446,109 +470,25 @@
     }
   }
 
-  /** текущий оттенок фона: плавный переход от оттенка прошлой секции к текущей
-      (по кратчайшему пути по цветовому кругу) */
-  function sectionHue() {
-    var cur = D.sections[state.sectionIndex].hue;
-    if (state.sectionIndex === 0) return cur;
-    var prev = D.sections[state.sectionIndex - 1].hue;
-    var t = Math.min(1, (state.elapsed - state.sectionEnterAt) / 1.2);
-    t = t * t * (3 - 2 * t); // smoothstep
-    var d = ((cur - prev + 540) % 360) - 180;
-    return (prev + d * t + 360) % 360;
-  }
-
-  /** спрайт с лёгким тинтом: перерисовывается на offscreen-канвасе только при
-      смене квантованного оттенка/уровня ночи. source-atop — тон ложится лишь по
-      непрозрачным пикселям спрайта (без «ореола» на прозрачном фоне). */
-  function tintedSprite(name, hue, night) {
-    var hb = Math.round(hue / 12) * 12 % 360; // квантуем оттенок — не перерисовываем каждый кадр
-    var nb = Math.round(night * 4);           // 5 уровней ночности
-    var key = name + '_' + hb + '_' + nb;
-    var c = tintCache[key];
-    if (!c) {
-      var im = parallaxImgs[name];
-      c = document.createElement('canvas');
-      c.width = im.naturalWidth;
-      c.height = im.naturalHeight;
-      var cc = c.getContext('2d');
-      cc.drawImage(im, 0, 0);
-      cc.globalCompositeOperation = 'source-atop';
-      cc.fillStyle = 'hsla(' + hb + ',45%,' + (42 - nb * 8) + '%,' + (0.13 + night * 0.3).toFixed(2) + ')';
-      cc.fillRect(0, 0, c.width, c.height);
-      tintCache[key] = c;
-    }
-    return c;
-  }
-
-  /** один холм — верхний полукруг с плоским основанием (arc/closePath/fill).
-      Основание уходит ниже платформ: в просветах между ними видно тело холма,
-      а над нижними платформами и за высокими — гребень. */
-  function hillDome(cx, yBase, r) {
-    ctx.beginPath();
-    ctx.arc(cx, yBase, r, Math.PI, 0);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  /** дальний план: большие травяные холмы на весь задник, два параллакс-слоя.
-      Холм — союз кругов (arc/fill/stroke — всё есть в smoke-стабе): земляной
-      купол → трава тем же куполом, смещённым вверх («сечение»: зелень сверху,
-      земляная полоса снизу) → светлая кромка по верху. Оттенок травы следует
-      текущей секции; на гребнях стоят декоративные спрайты (Kenney, CC0) —
-      только когда картинки загружены (browser-only path). */
-  function drawParallax(camX, sky, hue) {
-    var night = sky.stars; // 0..1 — тёмнее к ночи
-    // зелёная база с лёгким дрейфом к оттенку секции (не «чистый» зелёный всегда)
-    var dhue = ((hue - 118 + 540) % 360) - 180;
-    var grassHue = Math.round(118 + dhue * 0.35);
-    var layers = [
-      { f: 0.30, band: Math.max(200, W * 0.17), rFrac: 0.155, jit: 0.45, topFrac: 0.34, spread: 0.14,
-        dirtL: 20, grassL: 31, sat: 40, sprFrac: 0.22, set: ['rockA', 'bushA', 'rockB'] },     // дальний
-      { f: 0.55, band: Math.max(280, W * 0.26), rFrac: 0.235, jit: 0.50, topFrac: 0.47, spread: 0.16,
-        dirtL: 27, grassL: 38, sat: 46, sprFrac: 0.30, set: ['bushC', 'bushD', 'rockC', 'accent'] } // ближний
-    ];
-    var haveImgs = parallaxReady();
+  /** дальний план: одна пиксель-арт полоса на забег (бесшовная, тайлится по горизонтали).
+      Нативный масштаб — пиксели остаются чёткими; нижний край приподнят над линией
+      горизонта, поэтому холмы выглядывают из-за платформ. Под изображением закрашиваем
+      его собственным цветом нижнего ряда: небо не просвечивает под задником.
+      В node-smoke DOM нет → функция ничего не рисует (только небо выше). */
+  function drawParallax(camX) {
+    if (!backdropReady()) return; // browser-only: в node Image не определён
+    var img = backdrops[bgIndex];
+    var iw = img.naturalWidth, ih = img.naturalHeight;
+    // нижний край полосы — чуть выше горизонта (верх типовых платформ)
+    var bottomY = groundTop() - D.platformRaise - D.backdropLift;
     ctx.imageSmoothingEnabled = false;
-    for (var li = 0; li < layers.length; li++) {
-      var l = layers[li];
-      var off = camX * l.f; // параллакс: слой скользит медленнее камеры
-      var i0 = Math.floor(off / l.band);
-      for (var i = i0 - 2; i <= i0 + W / l.band + 3; i++) {
-        var x = i * l.band + hash(i * 7.3 + li * 131.7) * l.band - off;
-        // радиус и верх холма детерминированы индексом — стабильны при панорамировании
-        var r = H * l.rFrac * (1 + (hash(i * 11.9 + li * 37.7) - 0.5) * 2 * l.jit);
-        var topY = H * l.topFrac + (hash(i * 4.7 + li * 89.3) - 0.5) * 2 * H * l.spread;
-        var yB = topY + r; // основание купола — уходит ниже платформ и за нижний край
-        var d = r * 0.14;  // на сколько трава смещена вверх от земли
-
-        // земляная база
-        ctx.fillStyle = 'hsl(25,34%,' + Math.round(l.dirtL - night * 14) + '%)';
-        hillDome(x, yB, r);
-        // трава: тот же купол чуть выше и уже — «зелень сверху, земляная полоса снизу»
-        var gl = l.grassL - night * 16 + (hash(i * 23.3 + li * 17.9) - 0.5) * 8;
-        ctx.fillStyle = 'hsl(' + grassHue + ',' + l.sat + '%,' + Math.round(gl) + '%)';
-        hillDome(x, yB - d, r * 0.985);
-        // светлая кромка по верху купола (stroke — есть в стабе)
-        ctx.strokeStyle = 'hsl(' + grassHue + ',' + l.sat + '%,' + Math.round(gl + 16) + '%)';
-        ctx.lineWidth = li === 0 ? 4 : 6;
-        ctx.beginPath();
-        ctx.arc(x, yB - d, r * 0.985, Math.PI, 0);
-        ctx.stroke();
-
-        // декоративный спрайт на гребне: ноги — на верхней дуге травяного купола
-        if (haveImgs && hash(i * 17.3 + li * 29.3) < 0.68) {
-          var name = l.set[Math.floor(hash(i * 3.1 + li * 57.3) * l.set.length)];
-          var im = parallaxImgs[name];
-          var sh = r * l.sprFrac; // высота спрайта от радиуса холма — «стоит на холме»
-          var sw = sh * (im.naturalWidth / im.naturalHeight);
-          var dx = (hash(i * 19.1 + li * 13.7) - 0.5) * r * 1.1;
-          var rg = r * 0.985;
-          var fy = yB - d - Math.sqrt(Math.max(0, rg * rg - dx * dx)); // верхняя дуга купола
-          ctx.drawImage(tintedSprite(name, hue, night), x + dx - sw / 2, fy - sh, sw, sh);
-        }
-      }
+    var off = -(camX * D.backdropParallax) % iw; // параллакс: полоса скользит медленнее камеры
+    for (var x = off; x < W + iw; x += iw) {
+      ctx.drawImage(img, x, bottomY - ih);
     }
+    // под полосой — её же цвет нижнего ряда (+16 по высоте: запас на тряску камеры)
+    ctx.fillStyle = backdropFillColor(img);
+    ctx.fillRect(0, bottomY, W, H + 16 - bottomY);
   }
 
   /** палитра неба по времени суток (локальный час) */
@@ -640,8 +580,8 @@
     drawShooting(now, sky.stars);
     drawBody(sky.body, sky.stars);
 
-    // дальний план: кусты/камни Kenney (CC0) за платформами, оттенок следует секции
-    drawParallax(camX, sky, sectionHue());
+    // дальний план: пиксель-арт полоса задника за платформами (одна на забег, чередуются)
+    drawParallax(camX);
 
     var bottom = H; // платформа доходит до нижнего края экрана — под ней не видно фон
 
@@ -879,7 +819,8 @@
       bindInput();
       loadPlayerSprites();
       loadTiles();
-      loadParallax();
+      loadBackdrops();
+      pickBackdrop(); // первый забег — случайная полоса
 
       buildState();
       window.Hud.init(hudRoot);
@@ -910,6 +851,7 @@
       ended = false;
       paused = false;
       pendingJump = false;
+      pickBackdrop(); // новый забег — следующая полоса по кругу
       buildState();
       window.Hud.hidePanels();
       lastTime = performance.now();
