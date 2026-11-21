@@ -44,11 +44,12 @@
       tileImgs.dirt.complete && tileImgs.dirt.naturalWidth > 0;
   }
 
-  // Пиксель-арт полосы задника (бесшовные, тайлятся по горизонтали): одна на забег —
-  // сначала случайная, потом по кругу. Список в GAME_DATA.backdrops.
+  // Пиксель-арт полоса задника (тайлится по горизонтали): одна на забег — сначала
+  // случайное состояние, дальше по кругу; обычная и её отражённая версия чередуются.
   var backdrops = null;   // [Image, ...]: доступны после загрузки
-  var bgIndex = -1;       // индекс полосы текущего забега (-1 → ещё не выбрано)
+  var bgState = -1;       // 0..(2n-1): floor(bgState/n) — полоса, bgState % n === 1 — её зеркало
   var fillCache = {};      // img.src -> цвет нижнего ряда (заполнение под изображением)
+  var mirrorCache = {};    // img.src -> offscreen-канвас с горизонтальным зеркалом
 
   function loadBackdrops() {
     if (backdrops || typeof Image === 'undefined') return; // smoke/node — нет DOM
@@ -68,11 +69,14 @@
     return true;
   }
 
-  /** выбор полосы на забег: первый раз случайная, дальше по кругу — каждый забег со своей */
+  /** выбор полосы на забег: первое состояние случайное из {обычная, зеркало} по каждой
+      полосе, дальше +1 по кругу — обычная и отражённая версии чередуются, стык тайла
+      тогда совпадает с серединой полосы и не виден */
   function pickBackdrop() {
     var n = D.backdrops.length;
     if (!n) return;
-    bgIndex = (bgIndex < 0) ? Math.floor(Math.random() * n) : (bgIndex + 1) % n;
+    var m = 2 * n;
+    bgState = (bgState < 0) ? Math.floor(Math.random() * m) : (bgState + 1) % m;
   }
 
   /** цвет нижнего ряда полосы — для заполнения под изображением: небо не должно
@@ -98,6 +102,23 @@
       return ('0' + v.toString(16)).slice(-2);
     };
     return fillCache[key] = '#' + hex(r) + hex(g) + hex(b);
+  }
+
+  /** горизонтальное зеркало полосы — offscreen-канвас, строится один раз на src.
+      Browser-only: вызывается только при backdropReady() (в node Image не определён). */
+  function mirroredCanvas(img) {
+    var key = img.src;
+    if (!mirrorCache[key]) {
+      var c = document.createElement('canvas');
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      var cc = c.getContext('2d');
+      cc.translate(c.width, 0);
+      cc.scale(-1, 1);
+      cc.drawImage(img, 0, 0);
+      mirrorCache[key] = c;
+    }
+    return mirrorCache[key];
   }
 
   /* ---------- геометрия ---------- */
@@ -358,30 +379,31 @@
   /** фоновые «звёзды» — дешёвый параллакс, детерминированный от camX */
   function drawStars(camX, alpha) {
     var layers = [
-      { f: 0.12, r: 1.1, a: 0.30, band: 96 },
-      { f: 0.30, r: 1.5, a: 0.42, band: 170 },
-      { f: 0.55, r: 2.1, a: 0.55, band: 300 }
+      { f: 0.12, r: 1, a: 0.35, band: 96 },   // дальние — одиночный пиксель
+      { f: 0.30, r: 2, a: 0.45, band: 170 },
+      { f: 0.55, r: 3, a: 0.55, band: 300 }   // ближние — 3px-квадрат
     ];
-    ctx.fillStyle = '#a9b8d6';
+    ctx.fillStyle = '#c2cde6';
     for (var li = 0; li < layers.length; li++) {
       var l = layers[li];
       var off = camX * l.f;
       var i0 = Math.floor(off / l.band);
       ctx.globalAlpha = l.a * alpha;
       for (var i = i0 - 1; i < i0 + W / l.band + 2; i++) {
-        var x = i * l.band + hash(i * 7.3 + li * 131.7) * l.band - off;
-        var y = 12 + hash(i * 3.1 + li * 57.3) * H * 0.42;
+        var x = Math.round(i * l.band + hash(i * 7.3 + li * 131.7) * l.band - off); // целые пиксели
+        var y = Math.round(12 + hash(i * 3.1 + li * 57.3) * H * 0.42);
         ctx.fillRect(x, y, l.r, l.r);
       }
     }
     ctx.globalAlpha = 1;
   }
 
-  /** облака — два параллакс-слоя (дальние мельче и тусклее), детерминированы от camX */
+  /** облака — два параллакс-слоя (дальние мельче и тусклее), детерминированы от camX;
+      пиксельные: строки блоков в тон спрайтам */
   function drawClouds(camX, dayness) {
     var layers = [
-      { f: 0.18, band: 420, r: 9, yFrac: 0.08, a: 0.14 + 0.10 * dayness }, // дальний
-      { f: 0.34, band: 560, r: 14, yFrac: 0.18, a: 0.20 + 0.16 * dayness } // ближний
+      { f: 0.18, band: 420, s: 3, yFrac: 0.08, a: 0.16 + 0.10 * dayness }, // дальний (px-шаг 3)
+      { f: 0.34, band: 560, s: 5, yFrac: 0.18, a: 0.22 + 0.16 * dayness } // ближний (px-шаг 5)
     ];
     ctx.fillStyle = '#ffffff';
     for (var li = 0; li < layers.length; li++) {
@@ -390,24 +412,28 @@
       var i0 = Math.floor(off / l.band);
       ctx.globalAlpha = l.a;
       for (var i = i0 - 1; i <= i0 + W / l.band + 2; i++) {
-        var x = i * l.band + hash(i * 9.7 + li * 43.1) * l.band - off;
-        var y = H * l.yFrac + hash(i * 5.3 + li * 11.9) * H * 0.08;
-        cloudBlob(x, y, l.r);
+        var x = Math.round(i * l.band + hash(i * 9.7 + li * 43.1) * l.band - off); // целые пиксели
+        var y = Math.round(H * l.yFrac + hash(i * 5.3 + li * 11.9) * H * 0.08);
+        pixelCloud(x, y, l.s);
       }
     }
     ctx.globalAlpha = 1;
   }
 
-  /** одно облако — три сгруппированных блоба */
-  function cloudBlob(x, y, r) {
-    ctx.beginPath();
-    ctx.arc(x - r * 0.9, y + r * 0.25, r * 0.7, 0, Math.PI * 2);
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.arc(x + r * 0.9, y + r * 0.3, r * 0.75, 0, Math.PI * 2);
-    ctx.fill();
+  /** одно облако — пиксельная «шапка»: строки блоков [y, x0, w] в px-шагах */
+  function pixelCloud(x, y, s) {
+    var rows = [
+      [0, 2, 3], // верхушка
+      [1, 1, 5],
+      [2, 0, 7],
+      [3, -1, 9] // основание шире — «подушка»
+    ];
+    for (var r = 0; r < rows.length; r++) {
+      ctx.fillRect(x + rows[r][1] * s, y + rows[r][0] * s, rows[r][2] * s, s);
+    }
   }
 
-  /** «падающие звёзды» — редкие штрихи с хвостом, детерминированные от времени */
+  /** «падающие звёзды» — редкие пиксельные штрихи с хвостом, детерминированные от времени */
   function drawShooting(now, alpha) {
     var n = 3;
     for (var k = 0; k < n; k++) {
@@ -415,80 +441,93 @@
       var t = (now / period) % 1;
       if (t > 0.32) continue; // живёт ~треть периода, остальное время «спит»
       var life = t / 0.32;
-      var x = W * (0.2 + 0.7 * hash(k * 17.23)) - life * W * 0.85;
-      var y = H * (0.06 + 0.28 * hash(k * 31.7)) + life * H * 0.24;
-      ctx.strokeStyle = 'rgba(255,255,255,' + (0.55 * alpha) + ')';
-      ctx.lineWidth = 1.6;
-      var len = 64 * (1 - life);
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + len * 0.72, y - len * 0.45);
-      ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,' + (0.9 * alpha) + ')';
-      ctx.beginPath();
-      ctx.arc(x, y, 1.8, 0, Math.PI * 2);
-      ctx.fill();
+      var x = Math.round(W * (0.2 + 0.7 * hash(k * 17.23)) - life * W * 0.85);
+      var y = Math.round(H * (0.06 + 0.28 * hash(k * 31.7)) + life * H * 0.24);
+      // хвост — пиксели по диагонали вверх-назад; голова ярче и крупнее
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.55 * alpha) + ')';
+      for (var j = 6; j >= 1; j--) {
+        if (j > Math.round(6 * (1 - life))) continue; // хвост короче к концу жизни
+        ctx.fillRect(x + j * 3, y - j * 2, 2, 2);
+      }
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.95 * alpha) + ')';
+      ctx.fillRect(x - 1, y - 1, 3, 3);
     }
   }
 
-  /** луна или солнце — по времени суток */
+  /** луна или солнце — по времени суток; пиксельные блоки в тон спрайтам */
   function drawBody(kind, alpha) {
-    var x = W * 0.78;
-    var y = H * 0.15;
+    var x = Math.round(W * 0.78);
+    var y = Math.round(H * 0.15);
     if (kind === 'moon') {
-      ctx.fillStyle = 'rgba(214,226,255,' + (0.16 * alpha) + ')'; // ореол
-      ctx.beginPath();
-      ctx.arc(x, y, 34, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#e9edf7';
-      ctx.beginPath();
-      ctx.arc(x, y, 21, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(148,163,197,0.55)'; // кратеры
-      ctx.beginPath(); ctx.arc(x - 6, y - 4, 4, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(x + 5, y + 6, 3, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(x + 3, y - 8, 2.2, 0, Math.PI * 2); ctx.fill();
+      pixelCircle(x, y, 34, 4, 'rgba(214,226,255,' + (0.14 * alpha) + ')'); // ореол
+      pixelCircle(x, y, 21, 4, '#e9edf7');
+      ctx.fillStyle = 'rgba(148,163,197,0.55)'; // кратеры — блоки
+      ctx.fillRect(x - 8, y - 6, 4, 4);
+      ctx.fillRect(x + 3, y + 4, 4, 4);
+      ctx.fillRect(x + 1, y - 10, 4, 4);
     } else {
       var r = 24;
-      ctx.strokeStyle = 'rgba(255,217,122,' + (0.8 * alpha) + ')'; // лучи
-      ctx.lineWidth = 3;
+      ctx.fillStyle = 'rgba(255,217,122,' + (0.8 * alpha) + ')'; // лучи — пиксели по 8 направлениям
       for (var k = 0; k < 8; k++) {
         var a = (k / 8) * Math.PI * 2;
-        ctx.beginPath();
-        ctx.moveTo(x + Math.cos(a) * (r + 5), y + Math.sin(a) * (r + 5));
-        ctx.lineTo(x + Math.cos(a) * (r + 14), y + Math.sin(a) * (r + 14));
-        ctx.stroke();
+        ctx.fillRect(Math.round(x + Math.cos(a) * (r + 8)) - 2, Math.round(y + Math.sin(a) * (r + 8)) - 2, 4, 4);
       }
-      ctx.fillStyle = 'rgba(255,217,122,' + (0.18 * alpha) + ')'; // ореол
-      ctx.beginPath();
-      ctx.arc(x, y, r + 8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffd98a';
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
+      pixelCircle(x, y, r + 10, 4, 'rgba(255,217,122,' + (0.16 * alpha) + ')'); // ореол
+      pixelCircle(x, y, r, 4, '#ffd98a');
     }
   }
 
-  /** дальний план: одна пиксель-арт полоса на забег (бесшовная, тайлится по горизонтали).
-      Нативный масштаб — пиксели остаются чёткими; нижний край приподнят над линией
-      горизонта, поэтому холмы выглядывают из-за платформ. Под изображением закрашиваем
+  /** пиксельный круг: сетка блоков s×s, «включены» ячейки внутри радиуса */
+  function pixelCircle(cx, cy, rad, s, color) {
+    ctx.fillStyle = color;
+    var n = Math.ceil(rad / s);
+    for (var gy = -n; gy <= n; gy++) {
+      for (var gx = -n; gx <= n; gx++) {
+        if (gx * gx + gy * gy > (rad / s) * (rad / s)) continue;
+        ctx.fillRect(cx + gx * s, cy + gy * s, s, s);
+      }
+    }
+  }
+
+  /** пиксельный колюк-треугольник: тёмный силуэт чуть крупнее + светлый корпус внутри —
+      читается на любом фоне. Ступени по 2px, остриё сверху */
+  function pixelSpike(cx, yBase) {
+    spikeShape(cx, yBase, D.spikeW + 4, D.spikeH + 2, '#394150'); // контур
+    spikeShape(cx, yBase, D.spikeW - 4, D.spikeH - 6, '#efe6c8'); // корпус
+  }
+  function spikeShape(cx, yBase, w, h, color) {
+    if (w < 2 || h < 2) return;
+    ctx.fillStyle = color;
+    var s = 2, rows = Math.round(h / s);
+    for (var r = 0; r < rows; r++) { // r=0 — остриё
+      var rw = Math.max(s, Math.ceil((w * (r + 1)) / rows / s) * s);
+      ctx.fillRect(Math.round(cx - rw / 2), yBase - h + r * s, rw, s);
+    }
+  }
+
+  /** дальний план: одна пиксель-арт полоса на забег (тайлится по горизонтали); обычная и
+      её отражённая версия чередуются — стык тайла тогда не виден. Масштаб из GAME_DATA
+      (нативный размер большеваты), пиксели чёткие. Нижний край приподнят над линией
+      горизонта, поэтому холмы выглядывают из-за платформ; под изображением закрашиваем
       его собственным цветом нижнего ряда: небо не просвечивает под задником.
       В node-smoke DOM нет → функция ничего не рисует (только небо выше). */
   function drawParallax(camX) {
     if (!backdropReady()) return; // browser-only: в node Image не определён
-    var img = backdrops[bgIndex];
-    var iw = img.naturalWidth, ih = img.naturalHeight;
-    // нижний край полосы — чуть выше горизонта (верх типовых платформ)
-    var bottomY = groundTop() - D.platformRaise - D.backdropLift;
+    var n = D.backdrops.length;
+    var img = backdrops[Math.floor(bgState / n)];
+    var src = (bgState % n === 1) ? mirroredCanvas(img) : img; // зеркало той же полосы
+    // целые пиксели — без субпиксельных швов на стыке тайлов и под нижним краем
+    var iw = Math.round(src.width * D.backdropScale);
+    var ih = Math.round(src.height * D.backdropScale);
+    var bottomY = Math.round(groundTop() - D.platformRaise - D.backdropLift); // чуть выше горизонта
     ctx.imageSmoothingEnabled = false;
-    var off = -(camX * D.backdropParallax) % iw; // параллакс: полоса скользит медленнее камеры
+    var off = Math.round(-((camX * D.backdropParallax) % iw)); // параллакс: полоса скользит медленнее камеры
     for (var x = off; x < W + iw; x += iw) {
-      ctx.drawImage(img, x, bottomY - ih);
+      ctx.drawImage(src, x, bottomY - ih, iw, ih);
     }
-    // под полосой — её же цвет нижнего ряда (+16 по высоте: запас на тряску камеры)
+    // под полосой — её же цвет нижнего ряда; старт на 1px выше кромки — без светящейся щели
     ctx.fillStyle = backdropFillColor(img);
-    ctx.fillRect(0, bottomY, W, H + 16 - bottomY);
+    ctx.fillRect(0, bottomY - 1, W, H + 24 - bottomY);
   }
 
   /** палитра неба по времени суток (локальный час) */
@@ -596,7 +635,7 @@
       if (tilesReady()) {
         // тайлы Kenney: трава сверху + земля ниже; сетка закреплена за миром (не «плавает» при панорамировании)
         ctx.save();
-        rr(ctx, sx, qtop, q.w, bottom - qtop, 8);
+        ctx.rect(sx, qtop, q.w, bottom - qtop); // прямые углы (без скругления)
         ctx.clip();
         ctx.imageSmoothingEnabled = false;
         var wx0 = Math.floor(q.x / TILE_PX) * TILE_PX; // горизонтальная привязка к мировому гриду
@@ -612,7 +651,7 @@
         ctx.restore();
       } else {
         ctx.fillStyle = '#1d232c';
-        rr(ctx, sx, qtop, q.w, bottom - qtop, 8);
+        ctx.rect(sx, qtop, q.w, bottom - qtop); // прямые углы (без скругления)
         ctx.fill();
 
         ctx.fillStyle = 'rgba(255,255,255,0.07)'; // блик верхней грани
@@ -635,22 +674,15 @@
     }
 
     // колья НА платформах — перепрыгиваемые препятствия (как кактусы в динозаврике):
-    // после плит, чтобы полностью стоять на поверхности. Тёмное железо (hue 218)
-    // не путается с травой/землёй и читается издалека
-    ctx.fillStyle = 'hsl(218, 9%, 30%)';
+    // после плит, чтобы полностью стоять на поверхности. Пиксельные и яркие
+    // (светлый корпус + тёмный контур) — читаются на зелёном заднике
     for (var spi = 0; spi < state.platforms.length; spi++) {
       var qs = state.platforms[spi];
       if (!qs.spikes || !qs.spikes.length) continue;
       if (qs.x > camX + W || qs.end < camX) continue; // вне экрана
       var qtopK = platTop(qs);
       for (var ski = 0; ski < qs.spikes.length; ski++) {
-        var spxK = qs.spikes[ski].x - camX, hwK = D.spikeW / 2;
-        ctx.beginPath();
-        ctx.moveTo(spxK - hwK, qtopK);
-        ctx.lineTo(spxK + hwK, qtopK);
-        ctx.lineTo(spxK, qtopK - D.spikeH);
-        ctx.closePath();
-        ctx.fill();
+        pixelSpike(qs.spikes[ski].x - camX, qtopK);
       }
     }
 
@@ -769,7 +801,7 @@
       if (!started || ended) return;
       if (e.code === 'Space' || e.code === 'ArrowUp') {
         e.preventDefault();
-        requestJump();
+        if (!e.repeat) requestJump(); // удержание не «перезаряжает» прыжок: одно нажатие — один прыжок
       } else if (e.code === 'KeyP' || e.code === 'Escape') {
         togglePause();
       }
@@ -820,7 +852,7 @@
       loadPlayerSprites();
       loadTiles();
       loadBackdrops();
-      pickBackdrop(); // первый забег — случайная полоса
+      pickBackdrop(); // первый забег — случайное состояние (обычная полоса или её зеркало)
 
       buildState();
       window.Hud.init(hudRoot);
@@ -851,7 +883,7 @@
       ended = false;
       paused = false;
       pendingJump = false;
-      pickBackdrop(); // новый забег — следующая полоса по кругу
+      pickBackdrop(); // новый забег — следующее состояние: обычная и отражённая версии чередуются
       buildState();
       window.Hud.hidePanels();
       lastTime = performance.now();

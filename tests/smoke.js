@@ -59,7 +59,7 @@ function capturing(el) {
 function makeCtx() {
   var noop = function () {};
   return {
-    setTransform: noop, fillRect: noop, clearRect: noop, beginPath: noop,
+    setTransform: noop, fillRect: noop, clearRect: noop, beginPath: noop, rect: noop, clip: noop,
     moveTo: noop, lineTo: noop, arcTo: noop, closePath: noop, fill: noop, stroke: noop,
     save: noop, restore: noop, translate: noop, // тряска камеры (fx.js) — no-op в симуляции
     fillText: noop, arc: noop,
